@@ -117,14 +117,13 @@ class ScaledEvaluationBar(manim_chess.EvaluationBar):
         """Animate the bar to eval_cp (centipawns, White's point of view)."""
         self.evaluation = eval_cp
 
-        # Use get_height()/get_width(): these always return actual world dimensions
-        # after any scale() call (unlike .height/.width which store unscaled values).
-        H = self.black_rectangle.get_height()   # e.g. 6.4 * 0.72 = 4.608
+        # .height/.width are the actual world dimensions, after any scale() call
+        H = self.black_rectangle.height   # e.g. 6.4 * 0.72 = 4.608
 
         white_frac = 1.0 / (1.0 + math.exp(-self._SIGMOID_K * eval_cp))
         rect_height = min(max(self._BAR_MIN_FRAC * H, white_frac * H), H)
         pos = self.black_rectangle.get_bottom() + np.array([0, rect_height / 2, 0])
-        W = self.black_rectangle.get_width()    # actual world width after scale()
+        W = self.black_rectangle.width
         new_rect = (
             Rectangle(width=W, height=rect_height,
                       stroke_color=self.WHITE, fill_opacity=1)
@@ -1140,6 +1139,7 @@ class QuickDemo(Scene):
         eval_bar.next_to(board, LEFT, buff=EVAL_BAR_OFFSET)
 
         title = Text(
+            "Quick Demo",
             font=FONTS.heading_font,
             font_size=FONTS.title_size,
             color=COLORS.text_primary
@@ -1179,7 +1179,7 @@ class QuickDemo(Scene):
             MoveData(15, "c3",    "c2c3", True,   45,   55,   0, "good",    "c3",  False, False, [], **_z),
             MoveData(16, "O-O",   "e8g8", False,  55,   50,   5, "good",    "O-O", False, False, [], **_z),
             MoveData(17, "h3",    "h2h3", True,   50,   60,   0, "good",    "h3",  False, False, [], **_z),
-            MoveData(18, "Na5??", "c6a5", False,  60,  180, 140, "blunder", "Nb8", False, False, [], **_z),
+            MoveData(18, "Na5",   "c6a5", False,  60,  180, 140, "blunder", "Nb8", False, False, [], **_z),
         ]
 
         position = chess.Board()

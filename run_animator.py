@@ -256,8 +256,7 @@ def main():
             quality_flag = quality_flag.replace("-p", "-")  # drop preview flag
         cmd = ["manim", quality_flag, "animator_game.py", args.scene]
         print(f"Running: {' '.join(cmd)}")
-        subprocess.run(cmd)
-        return
+        sys.exit(subprocess.run(cmd).returncode)
 
     # ------------------------------------------------------------------
     # AnimatedGame requires a game_id
