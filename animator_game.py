@@ -207,6 +207,10 @@ class MoveData:
     fti2: float = 0.0   # Tactical
     fti3: float = 0.0   # Strategic
 
+    # Mate annotations from the analyzer (see EnhancedMoveAnalysis)
+    mate_advice: str = ""
+    mate_line: str = ""
+
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "MoveData":
         """
@@ -279,6 +283,8 @@ class MoveData:
             fti1=fti1,
             fti2=fti2,
             fti3=fti3,
+            mate_advice=d.get("mate_advice", ""),
+            mate_line=d.get("mate_line", ""),
         )
 
 
@@ -400,6 +406,8 @@ class AnalysisData:
                 fti1=compute_fti(space_adv, mob_adv, ks_adv, thr_adv, FTI1_WEIGHTS),
                 fti2=compute_fti(space_adv, mob_adv, ks_adv, thr_adv, FTI2_WEIGHTS),
                 fti3=compute_fti(space_adv, mob_adv, ks_adv, thr_adv, FTI3_WEIGHTS),
+                mate_advice=m.mate_advice,
+                mate_line=m.mate_line,
             ))
 
         return cls(
@@ -626,24 +634,14 @@ class CommentaryPanel:
         ply_key = str(move.ply)
 
         if ply_key in self.custom_comments:
-            # Word-wrap the human comment to fit the panel
-            words = self.custom_comments[ply_key].split()
-            lines, current = [], ""
-            for word in words:
-                if len(current) + len(word) < 30:
-                    current += word + " "
-                else:
-                    lines.append(current.strip())
-                    current = word + " "
-            if current.strip():
-                lines.append(current.strip())
-            return lines
+            return self._wrap(self.custom_comments[ply_key])
 
         # Fallback: engine annotation
         lines = []
         if move.classification:
+            # A centipawn loss means little when a forced mate appears or vanishes
             loss_text = (f" ({move.eval_loss:.0f}cp lost)"
-                         if move.eval_loss > 10 else "")
+                         if move.eval_loss > 10 and not move.mate_advice else "")
             lines.append(f"{move.classification.capitalize()}{loss_text}")
 
         eval_val = move.eval_after / 100.0
@@ -652,9 +650,29 @@ class CommentaryPanel:
         else:
             lines.append(f"Eval: {eval_val:+.2f}")
 
-        if move.best_move_san and move.classification in ("blunder", "mistake"):
+        if move.mate_advice:
+            # Wider than custom comments so a long mating line fits the 5 rows
+            lines += self._wrap(move.mate_advice + ".", width=44)
+            lines += self._wrap(move.mate_line, width=44)
+
+        if (move.best_move_san and move.classification in ("blunder", "mistake")
+                and not move.mate_line):
             lines.append(f"Best: {move.best_move_san}")
 
+        return lines
+
+    @staticmethod
+    def _wrap(text: str, width: int = 30) -> List[str]:
+        """Word-wrap text into lines that fit the panel."""
+        lines, current = [], ""
+        for word in text.split():
+            if not current or len(current) + len(word) < width:
+                current += word + " "
+            else:
+                lines.append(current.strip())
+                current = word + " "
+        if current.strip():
+            lines.append(current.strip())
         return lines
 
     def update_commentary(self, move: MoveData) -> Animation:
