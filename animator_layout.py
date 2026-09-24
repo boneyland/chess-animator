@@ -126,7 +126,9 @@ UPPER_CENTER_Y = (UPPER_TOP_Y + UPPER_BOTTOM_Y) / 2
 BOARD_SCALE = 0.74
 
 # Centre the board within the upper zone vertically
-BOARD_CENTER_X = -2.5
+# Far enough left that the eval bar sits at the left margin, leaving the
+# panels as much width as possible
+BOARD_CENTER_X = -3.7   # leaves room for the eval bar's label at the margin
 BOARD_CENTER_Y = UPPER_CENTER_Y   # tracks the upper zone, not a hard-coded 0.0
 
 # Evaluation bar (to the left of the board)
@@ -138,9 +140,10 @@ EVAL_BAR_OFFSET = 0.3   # gap between eval bar and board left edge
 # Right Panel Layout  (three stacked panels, right side of upper zone)
 # =============================================================================
 
-# Horizontal boundaries — unchanged from original
-PANEL_LEFT_X   = 1.0
-PANEL_RIGHT_X  = 6.5
+# Horizontal boundaries: from just right of the board to the right margin
+# (aligned with the metrics strip below)
+PANEL_LEFT_X   = -0.95
+PANEL_RIGHT_X  = FRAME_RIGHT_X - MARGIN   # ~6.81
 PANEL_WIDTH    = PANEL_RIGHT_X - PANEL_LEFT_X
 PANEL_CENTER_X = (PANEL_LEFT_X + PANEL_RIGHT_X) / 2
 
@@ -150,9 +153,9 @@ PANEL_BOTTOM_Y = UPPER_BOTTOM_Y   # ~-1.95
 PANEL_TOTAL_HEIGHT = PANEL_TOP_Y - PANEL_BOTTOM_Y
 
 # Panel height ratios — same proportions as before
-HEADER_RATIO     = 0.28
-MOVE_LIST_RATIO  = 0.40
-COMMENTARY_RATIO = 0.32   # remainder; not used directly in calculation below
+HEADER_RATIO     = 0.22
+MOVE_LIST_RATIO  = 0.44   # moves and commentary share this panel
+COMMENTARY_RATIO = 0.34   # analysis panel; remainder, not used directly below
 
 # Calculate panel boundaries
 HEADER_TOP_Y    = PANEL_TOP_Y
@@ -163,6 +166,20 @@ MOVE_LIST_BOTTOM_Y = MOVE_LIST_TOP_Y - (PANEL_TOTAL_HEIGHT * MOVE_LIST_RATIO)
 
 COMMENTARY_TOP_Y    = MOVE_LIST_BOTTOM_Y - 0.1
 COMMENTARY_BOTTOM_Y = PANEL_BOTTOM_Y      # commentary fills remaining space
+
+# The moves panel is split into two columns: the move list on the left and
+# commentary on the right
+PANEL_PADDING       = 0.25   # inner margin for left-aligned text
+MOVES_COLUMN_WIDTH  = 2.8
+MOVES_COLUMN_PADDING = 0.15  # left margin of the move list inside its column
+MOVES_COLUMN_RIGHT_X  = PANEL_LEFT_X + MOVES_COLUMN_WIDTH
+MOVES_COLUMN_CENTER_X = PANEL_LEFT_X + MOVES_COLUMN_WIDTH / 2
+COMMENT_LEFT_X  = MOVES_COLUMN_RIGHT_X + PANEL_PADDING
+COMMENT_RIGHT_X = PANEL_RIGHT_X - PANEL_PADDING
+
+# Left and right text edges of the analysis panel
+ANALYSIS_LEFT_X  = PANEL_LEFT_X + PANEL_PADDING
+ANALYSIS_RIGHT_X = PANEL_RIGHT_X - PANEL_PADDING
 
 # Panel vertical centres
 HEADER_CENTER_Y     = (HEADER_TOP_Y     + HEADER_BOTTOM_Y)     / 2
@@ -239,9 +256,9 @@ class Typography:
     label_size:       int = 14
 
     # Header panel — compact sizes so content fits the short panel height
-    header_player_size: int = 12   # player name lines
-    header_vs_size:     int = 10   # "vs ♚ Black" line
-    header_info_size:   int = 10   # event · date and opening lines
+    header_player_size: int = 14   # player name lines
+    header_vs_size:     int = 12   # "vs ♚ Black" line
+    header_info_size:   int = 12   # event · date and opening lines
 
     # Smaller size for metric plot axis labels
     metric_label_size: int = 10

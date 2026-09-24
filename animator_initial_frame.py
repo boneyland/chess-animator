@@ -29,6 +29,7 @@ from animator_layout import (
     BOARD_SCALE, BOARD_CENTER_X, BOARD_CENTER_Y,
     EVAL_BAR_SCALE, EVAL_BAR_OFFSET,
     PANEL_LEFT_X, PANEL_RIGHT_X, PANEL_CENTER_X, PANEL_WIDTH,
+    MOVES_COLUMN_RIGHT_X, MOVES_COLUMN_CENTER_X, COMMENT_LEFT_X, COMMENT_RIGHT_X,
     HEADER_TOP_Y, HEADER_BOTTOM_Y, HEADER_CENTER_Y,
     MOVE_LIST_TOP_Y, MOVE_LIST_BOTTOM_Y, MOVE_LIST_CENTER_Y,
     COMMENTARY_TOP_Y, COMMENTARY_BOTTOM_Y, COMMENTARY_CENTER_Y,
@@ -236,25 +237,27 @@ def create_header_panel(game_info: GameInfo) -> VGroup:
 
 def create_move_list_panel() -> VGroup:
     """
-    Create the move list panel (empty for initial frame).
-    
+    Create the moves panel (empty for initial frame): the move list on the
+    left and the commentary column on the right.
+
     This will be populated as moves are played.
     """
     panel = VGroup()
-    
+
     # Panel background
     bg = get_panel_rect(MOVE_LIST_TOP_Y, MOVE_LIST_BOTTOM_Y)
     panel.add(bg)
-    
-    # Title
-    title = Text(
-        "Moves",
-        font=FONTS.heading_font,
-        font_size=FONTS.subtitle_size,
-        color=COLORS.text_secondary
-    )
-    title.move_to([PANEL_CENTER_X, MOVE_LIST_TOP_Y - 0.3, 0])
-    panel.add(title)
+
+    # Column titles and the divider between them
+    for text, x in (("Moves", MOVES_COLUMN_CENTER_X),
+                    ("Commentary", (COMMENT_LEFT_X + COMMENT_RIGHT_X) / 2)):
+        title = Text(text, font=FONTS.heading_font,
+                     font_size=FONTS.subtitle_size, color=COLORS.text_secondary)
+        title.move_to([x, MOVE_LIST_TOP_Y - 0.25, 0])
+        panel.add(title)
+    panel.add(Line([MOVES_COLUMN_RIGHT_X, MOVE_LIST_TOP_Y - 0.15, 0],
+                   [MOVES_COLUMN_RIGHT_X, MOVE_LIST_BOTTOM_Y + 0.15, 0],
+                   stroke_width=1, color=COLORS.text_secondary, stroke_opacity=0.4))
     
     # Placeholder for empty state
     placeholder = Text(
@@ -264,7 +267,7 @@ def create_move_list_panel() -> VGroup:
         color=COLORS.text_secondary,
         opacity=0.5
     )
-    placeholder.move_to([PANEL_CENTER_X, MOVE_LIST_CENTER_Y, 0])
+    placeholder.move_to([MOVES_COLUMN_CENTER_X, MOVE_LIST_CENTER_Y, 0])
     panel.add(placeholder)
     
     return panel
@@ -272,9 +275,9 @@ def create_move_list_panel() -> VGroup:
 
 def create_commentary_panel() -> VGroup:
     """
-    Create the commentary panel (empty for initial frame).
-    
-    This will show annotations and engine analysis during playback.
+    Create the analysis panel (empty for initial frame).
+
+    This will show Stockfish's analysis of each move during playback.
     """
     panel = VGroup()
     
@@ -289,7 +292,7 @@ def create_commentary_panel() -> VGroup:
         font_size=FONTS.subtitle_size,
         color=COLORS.text_secondary
     )
-    title.move_to([PANEL_CENTER_X, COMMENTARY_TOP_Y - 0.3, 0])
+    title.move_to([PANEL_CENTER_X, COMMENTARY_TOP_Y - 0.25, 0])
     panel.add(title)
     
     # Placeholder
