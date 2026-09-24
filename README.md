@@ -23,7 +23,7 @@ Each frame is laid out like this:
 ```
 
 - **Eval bar:** Stockfish's evaluation, shown as a number, as `M3` for a forced mate, or as `1-0` / `0-1` at checkmate. The fill uses Lichess's win-probability curve, so a big advantage fills most of the bar but only a forced mate fills all of it.
-- **Move list:** scrolls as the game goes on. Each move is colored by quality, for example red for blunders and teal for brilliant moves.
+- **Move list:** scrolls as the game goes on. Each move is colored by quality: greens for good moves, brown for book moves, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
 - **Commentary:** your own notes if you've written any (see [Adding Your Own Commentary](#adding-your-own-commentary)), otherwise the engine's annotation.
 - **Metrics strip:** four plots that extend by one point per move. Eval shows White's win chance from -1 to +1. Space, Mobility and King Safety scale to the range the game actually covers, and that range is printed next to each title.
 
@@ -36,17 +36,18 @@ Each move stays on screen for about 1.6 seconds.
 | Dependency | Notes |
 |---|---|
 | Python 3.10+ | |
-| [Manim Community](https://www.manim.community/) v0.20+ | `pip install manim` |
+| [Manim Community](https://www.manim.community/) v0.18+ | Tested with v0.21 |
 | [manim-chess](https://github.com/swoyer2/manim-chess) | Provides `Board` and `EvaluationBar` |
-| [python-chess](https://python-chess.readthedocs.io/) | `pip install chess` |
+| [python-chess](https://python-chess.readthedocs.io/) | Installed as `chess` |
 | [Stockfish](https://stockfishchess.org/download/) | Binary on your system |
 
-Install Python dependencies:
+Install the Python dependencies:
 
 ```bash
-pip install manim chess
-# install manim-chess per its own instructions
+pip install -r requirements.txt
 ```
+
+Manim also needs a few system libraries (such as Cairo, Pango and FFmpeg); see [Manim's installation guide](https://docs.manim.community/en/stable/installation.html) for your platform.
 
 ---
 
@@ -61,13 +62,16 @@ pip install manim chess
 | `animator_metrics.py` | Four-plot metrics strip (Eval, Space, Mobility, King Safety). |
 | `chess_game_analyzer.py` | Stockfish wrapper — produces per-move positional metrics. |
 | `convert_script_to_comment_dict.py` | Reads commentary from a `[KEY]` notes file and from PGN comments and move marks. |
-| `evaluation_bar.py` | `EvaluationBar` Mobject (part of manim-chess). |
+| `sample_game.pgn` | The annotated example game used throughout this README. |
+| `tests/` | Unit tests (see [Testing Without a Game File](#testing-without-a-game-file)). |
+| `preview.png` | The screenshot at the top of this README. |
+| `manim_chess/` | A modified copy of the manim-chess library. It is **not used**: the pip-installed package is imported instead. |
 
 ---
 
 ## Quick Start
 
-The repository includes `sample_game.pgn` — Caruana vs. Nepomniachtchi, Round 5 of the 2024 Candidates Tournament (Toronto), an Italian Game ending in a draw by repetition after 32 moves. All examples below use this file.
+The repository includes `sample_game.pgn`: Donald Byrne vs. Bobby Fischer, New York 1956, known as "The Game of the Century". The 13-year-old Fischer sacrifices his queen on move 17 and mates on move 41. The PGN carries its own commentary and move marks, which appear in the video (see [Adding Your Own Commentary](#adding-your-own-commentary)). All examples below use this file.
 
 ### 1. Analyze and animate in one step
 
@@ -78,7 +82,13 @@ python run_animator.py sample_game --analyze --depth 20
 This runs Stockfish at depth 20, saves `sample_game_analysis.json`, then renders a low-quality preview video. The `--analyze` flag is only needed the first time; subsequent renders reuse the saved JSON. While the analysis runs, a progress line shows how many moves are done and an estimate of the time left:
 
 ```
-Analyzing move 23/63 (36%) · 1:12 elapsed · ~2:05 left
+Analyzing move 23/82 (28%) · 1:12 elapsed · ~3:05 left
+```
+
+On a slow machine, `--time-limit` stops each Stockfish search after that many seconds even if `--depth` hasn't been reached, which keeps deep analysis to a predictable time:
+
+```bash
+python run_animator.py sample_game --analyze --depth 24 --time-limit 2
 ```
 
 ### 2. Re-render without re-analyzing
@@ -86,6 +96,8 @@ Analyzing move 23/63 (36%) · 1:12 elapsed · ~2:05 left
 ```bash
 python run_animator.py sample_game
 ```
+
+Changes to the PGN's headers (players, event, date, opening) and commentary show up without re-analyzing; only a change to the moves needs `--analyze` again.
 
 ### 3. Quality and resolution
 
@@ -120,10 +132,11 @@ By default Stockfish is found automatically in this order: the `STOCKFISH_PATH` 
 
 ### 5. Your own game
 
-Replace `sample_game` with any base filename. The script looks for `{name}.pgn`, `{name}_analysis.json`, and optionally `{name}_notes.txt` in the current directory:
+Replace `sample_game` with any base filename, optionally with a folder. The script looks for `{name}.pgn`, `{name}_analysis.json`, and optionally `{name}_notes.txt`:
 
 ```bash
 python run_animator.py my_game --analyze --depth 20
+python run_animator.py games/my_game --analyze --depth 20
 ```
 
 ---
@@ -145,16 +158,18 @@ Only the main line is read; side variations are ignored. Clock and eval tags fro
 
 ### In a notes file
 
-Create a plain text file named `sample_game_notes.txt` (or `{game_id}_notes.txt` for your own game) in the same directory. Each entry is a ply number in square brackets — where ply 1 = White's first move, ply 2 = Black's first move, and so on — followed by your comment:
+Create a plain text file named `{game_id}_notes.txt` next to the PGN, e.g. `sample_game_notes.txt`. Each entry is a ply number in square brackets, where ply 1 is White's first move, ply 2 is Black's first move, and so on, followed by your comment. Three other keys are recognised: `[INTRO]` is shown on the title card, and `[RESULT]` and `[CONCLUSION]` on the end card.
 
 ```
-[1] Caruana opens with the King's Pawn, staking a central claim immediately.
+[INTRO]
+The Game of the Century, New York 1956.
 
-[10] The Italian Game — one of the oldest and most deeply analyzed openings in chess.
+[21] Byrne moves the same bishop twice instead of castling.
 
-[23] A key moment: after the exchange on e3, White's rook structure becomes more active.
+[34] Fischer leaves his queen en prise. If 18.Bxb6, a windmill of checks follows.
 
-[47] Repetition begins. White has a slight edge but Black holds the balance.
+[CONCLUSION]
+A 13-year-old's masterpiece.
 ```
 
 If the notes file and the PGN both have a comment for the same move, the notes file wins.
@@ -196,7 +211,16 @@ Forced mates follow Lichess's rules, which override the table above:
 - **Lost forced checkmate sequence** (had a forced mate, no longer does): blunder, or mistake / inaccuracy if still winning big (above +7 / +10 pawns).
 - **Not the best checkmate sequence** (still mates, but more slowly): excellent.
 
-The thresholds are constants near the top of `chess_game_analyzer.py` (`WIN_DROP_*`, `MATE_*`). Mate advice also appears in the LaTeX report.
+The thresholds are constants near the top of `chess_game_analyzer.py` (`WIN_DROP_*`, `MATE_*`).
+
+### LaTeX reports
+
+`chess_game_analyzer.py` also runs on its own and writes a LaTeX report of a game, with diagrams, plots and the same move classifications and mate advice. Compiling the report needs a LaTeX distribution; the videos don't.
+
+```bash
+python chess_game_analyzer.py sample_game.pgn -o sample_game_report.tex
+python chess_game_analyzer.py --help   # all options
+```
 
 ---
 
@@ -216,7 +240,7 @@ The metrics strip can also be tested independently with synthetic sine-wave data
 manim -pql animator_metrics.py MetricsDebug
 ```
 
-Unit tests for reading commentary use the standard library's `unittest`:
+The unit tests use the standard library's `unittest`. A few are skipped if Stockfish isn't on your `PATH`:
 
 ```bash
 python -m unittest discover tests
@@ -249,13 +273,15 @@ All colors and font sizes are in `animator_layout.py` — `ColorScheme` and `Typ
 ## Data Flow
 
 ```
-sample_game.pgn                          (included in repository)
+sample_game.pgn                    moves, headers, commentary, move marks
     │
     ▼
-chess_game_analyzer.py                   (--analyze flag, run once)
+chess_game_analyzer.py             (--analyze, run once per game)
     │
-    ├──► sample_game_analysis.json       (reused on subsequent renders)
-    └──► sample_game_notes.txt           (optional, hand-written)
+    ▼
+sample_game_analysis.json          per-move evals, classifications, metrics
+
+sample_game_notes.txt              (optional, hand-written commentary)
 
 run_animator.py
     ├── writes sample_game_animator_config.json
@@ -264,12 +290,12 @@ run_animator.py
 
 AnimatedGame.construct()
     ├── loads analysis JSON  →  List[MoveData]
+    ├── reads headers, comments and move marks from the PGN,
+    │   then the notes file (which wins for the same move)
     ├── builds board, eval bar, header, move list, commentary, metrics strip
     └── for each move:
-            animate board position
-            update eval bar
-            update move list (scrolling)
-            update commentary
+            move the piece
+            update eval bar, move list and commentary together
             reveal next metrics segment
 ```
 
@@ -277,7 +303,7 @@ AnimatedGame.construct()
 
 ## License
 
-MIT License. See `LICENSE` for details.
+MIT License. See [`LICENSE.txt`](LICENSE.txt) for details.
 
 ---
 
