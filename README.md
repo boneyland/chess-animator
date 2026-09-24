@@ -1,6 +1,6 @@
 # Chess Game Animator
 
-A Python pipeline that turns a PGN chess game into an annotated video using [Manim](https://www.manim.community/). Each move is animated on a live board alongside a Stockfish evaluation bar, a scrolling move list, a commentary panel, and a four-plot metrics strip showing positional trends across the whole game.
+A Python pipeline that turns a PGN chess game into an annotated video using [Manim](https://www.manim.community/). Each move is animated on a live board alongside a Stockfish evaluation bar, a scrolling move list, your commentary, Stockfish's analysis of each move, and a plot of the evaluation across the whole game.
 
 ![Screenshot of a video produced with chess-animator](preview.png)
 
@@ -20,7 +20,7 @@ Each frame is laid out like this:
 │ l │              ├──────────────┴────────────────────────────┤
 │   │              │ Analysis (Stockfish)                      │
 ├──────────────────────────────────────────────────────────────┤
-│  Eval win chance  │  Space  │  Mobility  │  King Safety      │
+│  Eval: White's win chance over the whole game                │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -28,7 +28,7 @@ Each frame is laid out like this:
 - **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by quality: greens for good moves, brown for book moves, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
 - **Commentary:** your own notes for the current move, from the PGN or a notes file, beside the move list.
 - **Analysis:** Stockfish's view of every move: its rating and the centipawns lost, the evaluation, the best line (up to 6 plies) whenever the move played wasn't rated best, Lichess-style advice when a forced mate appears or is missed, and how deep the search went.
-- **Metrics strip:** four plots that extend by one point per move. Eval shows White's win chance from -1 to +1. Space, Mobility and King Safety scale to the range the game actually covers, and that range is printed next to each title.
+- **Eval plot:** Stockfish's evaluation as White's win chance from -1 to +1, extending by one point per move across the full width of the frame. Green while White is better, red while Black is.
 
 Each move stays on screen for about 1.6 seconds. A move with a comment stays longer, long enough to read it at about 15 characters a second.
 
@@ -61,11 +61,11 @@ Manim also needs a few system libraries (such as Cairo, Pango and FFmpeg); see [
 | File | Purpose |
 |---|---|
 | `run_animator.py` | **Start here.** CLI entry point — runs analysis and/or Manim. |
-| `animator_game.py` | Main Manim scene (`AnimatedGame`). Move loop, panels, metrics. |
+| `animator_game.py` | Main Manim scene (`AnimatedGame`). Move loop and panels. |
 | `animator_layout.py` | All geometry constants, colors, and fonts in one place. |
 | `animator_initial_frame.py` | Initial frame scene and `GameInfo` dataclass. |
-| `animator_metrics.py` | Four-plot metrics strip (Eval, Space, Mobility, King Safety). |
-| `chess_game_analyzer.py` | Stockfish wrapper — produces per-move positional metrics. |
+| `animator_metrics.py` | The Eval plot along the bottom of the frame. |
+| `chess_game_analyzer.py` | Stockfish wrapper: per-move evals, ratings, best lines and mate advice; also writes LaTeX reports. |
 | `convert_script_to_comment_dict.py` | Reads commentary from a `[KEY]` notes file and from PGN comments and move marks. |
 | `sample_game.pgn` | The annotated example game used throughout this README. |
 | `tests/` | Unit tests (see [Testing Without a Game File](#testing-without-a-game-file)). |
@@ -108,6 +108,8 @@ Stockfish gets a 256 MB hash table (its own default is 16 MB); change it with `-
 
 - **Depth only (no `--time-limit`): 1 thread.** At a fixed depth, extra threads widen the search instead of reaching the depth sooner. On a 4-core Ryzen laptop, one depth-20 position took 1.7 s with 1 thread and 53 s with 7. One thread also gives the same result on every run.
 - **With `--time-limit`: all cores but one.** Here the time is fixed, and 7 threads searched about 3.7 times as many positions as 1 in the same time, which gives a stronger answer.
+
+`--lines N` sets how many lines Stockfish searches before each move (default 3): the best move plus alternatives. `--lines 1` is several times faster, but it loses the alternative moves and its evals are somewhat less accurate, because a multi-line search is also a more thorough one.
 
 ### 2. Re-render without re-analyzing
 
@@ -200,16 +202,9 @@ Stockfish's analysis has its own panel, so it is shown for every move whether or
 
 ## How the Analysis Works
 
-`chess_game_analyzer.py` runs Stockfish on each position and also computes four positional metrics directly from the board using `python-chess`:
+`chess_game_analyzer.py` runs Stockfish on the position before and after each move. Everything the video shows about a move comes from those searches: the evaluation, the rating, the best line and the mate advice.
 
-| Metric | What it measures |
-|---|---|
-| **Eval** | Stockfish evaluation, plotted as White's win-probability advantage in [-1, +1] (0 cp → 0, ±300 cp → ±0.5, forced mate → ±1) |
-| **Space** | Control of central territory, weighted by piece count behind the pawn chain |
-| **Mobility** | Legal moves per piece type, weighted and penalized for unsafe squares |
-| **King Safety** | Pawn shield strength, king tropism, and attack units near the king |
-
-The Eval plot uses a fixed scale, so large evals and forced mates bend toward the edge instead of being clipped. The other three plots auto-scale to the actual range of values in the game (with 15% padding) so variation is always visible regardless of the absolute values. The range is shown next to each plot title, e.g. `King Safety [-0.22, 1.7]`.
+The Eval plot shows the evaluation as White's win-probability advantage in [-1, +1], using Lichess's curve (0 cp → 0, ±300 cp → ±0.5, forced mate → ±1). That fixed scale lets large evals and forced mates bend toward the edge instead of being clipped.
 
 ### Move classification
 
@@ -235,20 +230,20 @@ The thresholds are constants near the top of `chess_game_analyzer.py` (`WIN_DROP
 
 ### Best lines and search depth
 
-Before each move, Stockfish searches the position for its 3 best lines (MultiPV 3). The best line becomes the "best line" shown in the Analysis panel, and the other two are kept as playable alternatives. After the move, one line is searched for the evaluation. For every move, the analysis file records:
+Before each move, Stockfish searches the position for its best lines: 3 by default (MultiPV 3), set with `--lines`. The first becomes the "best line" shown in the Analysis panel, and the others are kept as playable alternatives. After the move, one line is searched for the evaluation. For every move, the analysis file records:
 
 | Field | Meaning |
 |---|---|
 | `best_line` | Stockfish's best line from the position before the move, in SAN (up to 12 plies) |
 | `search_depth` | Depth reached by the search before the move |
-| `search_lines` | Lines that search returned (3, or fewer when fewer moves are legal) |
+| `search_lines` | Lines that search returned (as many as `--lines`, or fewer when fewer moves are legal) |
 | `search_depth_after` | Depth reached by the search after the move |
 
 The file's `engine` section records the engine name, requested depth, time limit, lines, threads and hash size.
 
 ### LaTeX reports
 
-`chess_game_analyzer.py` also runs on its own and writes a LaTeX report of a game, with diagrams, plots and the same move classifications and mate advice. Compiling the report needs a LaTeX distribution; the videos don't.
+`chess_game_analyzer.py` also runs on its own and writes a LaTeX report of a game: player statistics, the annotated game with the same move classifications and mate advice, and diagrams of critical positions. `--book` writes one chapter per game for every game in a PGN. Compiling the report needs a LaTeX distribution; the videos don't.
 
 ```bash
 python chess_game_analyzer.py sample_game.pgn -o sample_game_report.tex
@@ -267,7 +262,7 @@ python run_animator.py --scene QuickDemo
 manim -pql animator_game.py QuickDemo
 ```
 
-The metrics strip can also be tested independently with synthetic sine-wave data:
+The Eval plot can also be tested independently with a synthetic evaluation:
 
 ```bash
 manim -pql animator_metrics.py MetricsDebug
@@ -293,10 +288,6 @@ _SIGMOID_K = 0.00368208  # Lichess coefficient: +100 cp ≈ 59%, +400 cp ≈ 81%
 
 A larger `k` fills the bar faster. The Eval plot has its own copy of this coefficient (`_EVAL_WIN_K` in `animator_metrics.py`), and move classification uses `WIN_CHANCES_K` in `chess_game_analyzer.py`; keep them in step if you want the bar, plot, and classifications to agree.
 
-### Swapping the fourth metrics plot
-
-The fourth plot is King Safety. To swap it for Threats (or FTI), edit the `_ks_w` / `_ks_b` extraction in `MetricPlotPanel.__init__` in `animator_metrics.py` and the corresponding `advance_to_move()` call. The fields available on each `MoveData` are: `space_white/black`, `mobility_white/black`, `king_safety_white/black`, `threats_white/black`, `fti1`, `fti2`, `fti3`.
-
 ### Colors and fonts
 
 All colors and font sizes are in `animator_layout.py` — `ColorScheme` and `Typography` dataclasses at the top of the file.
@@ -312,7 +303,7 @@ sample_game.pgn                    moves, headers, commentary, move marks
 chess_game_analyzer.py             (--analyze, run once per game)
     │
     ▼
-sample_game_analysis.json          per-move evals, classifications, metrics
+sample_game_analysis.json          per-move evals, ratings, best lines, depth
 
 sample_game_notes.txt              (optional, hand-written commentary)
 
@@ -325,12 +316,12 @@ AnimatedGame.construct()
     ├── loads analysis JSON  →  List[MoveData]
     ├── reads headers, comments and move marks from the PGN,
     │   then the notes file (which wins for the same move)
-    ├── builds board, eval bar, header, move list, commentary, metrics strip
+    ├── builds board, eval bar, header, move list, commentary, analysis, eval plot
     └── for each move:
             move the piece
             update eval bar, move list, commentary and analysis together
             hold longer if the move has a comment
-            reveal next metrics segment
+            extend the eval plot by one move
 ```
 
 ---

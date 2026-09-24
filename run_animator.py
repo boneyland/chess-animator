@@ -31,7 +31,8 @@ Options:
                 one with --time-limit, where extra threads help)
     --hash MB   Stockfish hash table size  (default: 256)
     --lines N   Lines Stockfish searches before each move (default: 3);
-                1 is several times faster and loses only the alternatives
+                1 is several times faster, but loses the alternative
+                moves and makes evals somewhat less accurate
     --stockfish PATH  Path to Stockfish binary  (default: auto-detect)
 
 Examples:
@@ -159,33 +160,9 @@ def run_analysis(pgn_path: Path, output_path: Path,
         print(f"Error during analysis: {exc}")
         return False
 
-    # Constants duplicated here so we never need to import animator_game
-    THREATS_SCALE_FACTOR = 20.0
-    FTI1_WEIGHTS = (0.25, 0.25, 0.25, 0.25)
-    FTI2_WEIGHTS = (0.60, 0.10, 0.00, 0.30)
-    FTI3_WEIGHTS = (0.70, 0.10, 0.10, 0.10)
-
-    def compute_fti(sa, ma, ksa, ta, w):
-        return w[0]*sa + w[1]*ma + w[2]*ksa + w[3]*ta
-
     try:
         moves_out = []
         for m in result.moves:
-            pe = m.positional_eval
-            sw  = float(pe.space_white       if pe else 0.0)
-            sb  = float(pe.space_black       if pe else 0.0)
-            mw  = float(pe.mobility_white    if pe else 0.0)
-            mb  = float(pe.mobility_black    if pe else 0.0)
-            ksw = float(pe.king_safety_white if pe else 0.0)
-            ksb = float(pe.king_safety_black if pe else 0.0)
-            tw  = float(pe.threats_white     if pe else 0.0)
-            tb  = float(pe.threats_black     if pe else 0.0)
-
-            sa  = sw  - sb
-            ma  = mw  - mb
-            ksa = ksw - ksb
-            ta  = (tw - tb) / THREATS_SCALE_FACTOR
-
             moves_out.append({
                 "ply":              m.ply,
                 "move_san":         m.move_san,
@@ -205,17 +182,6 @@ def run_analysis(pgn_path: Path, output_path: Path,
                 "search_depth":     m.search_depth,
                 "search_depth_after": m.search_depth_after,
                 "search_lines":     m.search_lines,
-                "space_white":      sw,
-                "space_black":      sb,
-                "mobility_white":   mw,
-                "mobility_black":   mb,
-                "king_safety_white": ksw,
-                "king_safety_black": ksb,
-                "threats_white":    tw,
-                "threats_black":    tb,
-                "fti1": compute_fti(sa, ma, ksa, ta, FTI1_WEIGHTS),
-                "fti2": compute_fti(sa, ma, ksa, ta, FTI2_WEIGHTS),
-                "fti3": compute_fti(sa, ma, ksa, ta, FTI3_WEIGHTS),
             })
 
         data = {
@@ -301,8 +267,8 @@ def main():
     parser.add_argument(
         "--lines", type=int, default=None, metavar="N",
         help="Lines (MultiPV) Stockfish searches before each move: the best "
-             "move plus alternatives (default: 3). 1 is several times faster "
-             "and loses only the alternatives.",
+             "move plus alternatives (default: 3). 1 is several times faster, "
+             "but loses the alternatives and makes evals somewhat less accurate.",
     )
     parser.add_argument(
         "--hash", type=int, default=None, metavar="MB", dest="hash_mb",

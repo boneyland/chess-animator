@@ -5,7 +5,6 @@
 #   Stockfish binary — https://stockfishchess.org/download/
 #   LaTeX distribution — only to compile the optional reports written by
 #   chess_game_analyzer.py (e.g. TeX Live or MiKTeX); videos don't need it
-#   matplotlib — optional, for plots in those reports
 
 # Core animation
 manim>=0.18.0

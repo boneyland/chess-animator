@@ -20,16 +20,12 @@ from animator_game import (AnalysisData, AnalysisPanel, CommentPanel, MoveData,
                            ScaledEvaluationBar, comment_hold_seconds,
                            default_notes_path, format_line)
 
-_Z = dict(space_white=0, space_black=0, mobility_white=0, mobility_black=0,
-          king_safety_white=0, king_safety_black=0, threats_white=0,
-          threats_black=0, fti1=0, fti2=0, fti3=0)
-
 
 def _move(ply, san, classification, best_san, best_line=(), eval_after=21,
           eval_loss=38, **extra):
     return MoveData(ply, san, "a1a2", ply % 2 == 1, 0, eval_after, eval_loss,
                     classification, best_san, False, False, [],
-                    best_line=list(best_line), **_Z, **extra)
+                    best_line=list(best_line), **extra)
 
 
 class FormatLineTest(unittest.TestCase):
@@ -142,6 +138,23 @@ class CommentHoldTest(unittest.TestCase):
         self.assertEqual(comment_hold_seconds("x" * 300), 20.0)   # 15 chars/s
 
 
+class EvalStripTest(unittest.TestCase):
+
+    def test_one_segment_per_move_coloured_by_who_is_better(self):
+        from animator_layout import COLORS
+        from animator_metrics import MetricPlotPanel
+
+        moves = [_move(i + 1, "e4", "best", "e4", eval_after=cp)
+                 for i, cp in enumerate((0, 150, -200, 50))]
+        panel = MetricPlotPanel(moves)
+        for idx in range(len(moves)):
+            panel.advance_to_move(idx)
+        segments = panel._segments.submobjects
+        self.assertEqual(len(segments), 3)
+        self.assertEqual([s.get_stroke_color().to_hex().lower() for s in segments],
+                         [COLORS.plot_net_pos, COLORS.plot_net_neg, COLORS.plot_net_pos])
+
+
 class MoveDataFieldsTest(unittest.TestCase):
 
     def test_search_details_and_best_line_are_read_from_json(self):
@@ -153,6 +166,14 @@ class MoveDataFieldsTest(unittest.TestCase):
         m = MoveData.from_dict(d)
         self.assertEqual((m.best_line, m.search_depth, m.search_depth_after, m.search_lines),
                          (["Be2", "Nfd7"], 18, 23, 3))
+
+    def test_older_json_with_removed_metric_fields_still_loads(self):
+        d = {"ply": 1, "move_san": "e4", "move_uci": "e2e4", "is_white_move": True,
+             "eval_before": 0, "eval_after": 30, "eval_loss": 0,
+             "classification": "book", "best_move_san": "e4",
+             "space_white": 0.3, "mobility_black": 1.2, "fti1": 0.1,
+             "positional_eval": {"space_white_mg": 3}}
+        self.assertEqual(MoveData.from_dict(d).move_san, "e4")
 
     def test_older_json_without_them_still_loads(self):
         d = {"ply": 1, "move_san": "e4", "move_uci": "e2e4", "is_white_move": True,

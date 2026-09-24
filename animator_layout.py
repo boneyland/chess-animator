@@ -9,17 +9,19 @@ for maximum readability.
 
 The layout divides the frame into two zones:
 
-  ┌─────────────────────────────────────────────────────────┐
-  │  Eval │                    │  Header                    │
-  │  Bar  │   Chess Board      │  Move List                 │
-  │       │                    │  Commentary                │
-  ├───────────────────────────────────────────────────────── │
-  │         Metrics Strip  (Eval · Space · Mobility · FTI)  │
-  └─────────────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────┐
+  │ Eval │               │ Header                            │
+  │ bar  │  Chess board  ├─────────────┬─────────────────────┤
+  │      │               │ Moves       │ Commentary          │
+  │      │               ├─────────────┴─────────────────────┤
+  │      │               │ Analysis                          │
+  ├──────────────────────────────────────────────────────────┤
+  │  Metrics strip: Eval (White's win chance) over the game  │
+  └──────────────────────────────────────────────────────────┘
 
 Upper zone  — board + eval bar on the left, three stacked panels on the right.
 Metrics strip — full-width horizontal band across the bottom of the frame,
-                shared by both the board side and the panel side.
+                holding one plot of Stockfish's evaluation.
 
 Key geometry decisions
 ----------------------
@@ -58,8 +60,8 @@ MARGIN = 0.3   # general margin from frame edges
 # =============================================================================
 
 # Height of the metrics strip in Manim units.
-# 1.6 gives four sub-plots enough room for axes labels and curves
-# while leaving the upper zone well proportioned (≈ 75 % of frame height).
+# 1.6 gives the plot room for its label and curve while leaving the upper
+# zone well proportioned (≈ 75 % of frame height).
 METRICS_HEIGHT = 1.6
 
 # Gap between the bottom of the upper zone and the top of the strip
@@ -75,35 +77,6 @@ METRICS_RIGHT_X = FRAME_RIGHT_X - MARGIN   # ~ 6.81
 METRICS_WIDTH   = METRICS_RIGHT_X - METRICS_LEFT_X
 METRICS_CENTER_X = 0.0                     # centred on frame
 METRICS_CENTER_Y = (METRICS_TOP_Y + METRICS_BOTTOM_Y) / 2
-
-# Individual sub-plot widths (four equal plots with small inter-plot gap)
-METRICS_SUBPLOT_GAP   = 0.2
-METRICS_SUBPLOT_WIDTH = (METRICS_WIDTH - 3 * METRICS_SUBPLOT_GAP) / 4
-
-# Sub-plot left-edge x positions (left → right: Eval, Space, Mobility, FTI)
-def _subplot_left(index: int) -> float:
-    """Return the left-edge x-coordinate of sub-plot number `index` (0-based)."""
-    return METRICS_LEFT_X + index * (METRICS_SUBPLOT_WIDTH + METRICS_SUBPLOT_GAP)
-
-METRICS_EVAL_LEFT_X     = _subplot_left(0)
-METRICS_SPACE_LEFT_X    = _subplot_left(1)
-METRICS_MOBILITY_LEFT_X = _subplot_left(2)
-METRICS_FTI_LEFT_X      = _subplot_left(3)
-
-# Convenience: centre x of each sub-plot
-METRICS_EVAL_CENTER_X     = METRICS_EVAL_LEFT_X     + METRICS_SUBPLOT_WIDTH / 2
-METRICS_SPACE_CENTER_X    = METRICS_SPACE_LEFT_X    + METRICS_SUBPLOT_WIDTH / 2
-METRICS_MOBILITY_CENTER_X = METRICS_MOBILITY_LEFT_X + METRICS_SUBPLOT_WIDTH / 2
-METRICS_FTI_CENTER_X      = METRICS_FTI_LEFT_X      + METRICS_SUBPLOT_WIDTH / 2
-
-# Sub-plot labels (used by animator_metrics.py)
-METRICS_SUBPLOT_LABELS = ["Eval", "Space", "Mobility", "FTI"]
-METRICS_SUBPLOT_LEFT_EDGES = [
-    METRICS_EVAL_LEFT_X,
-    METRICS_SPACE_LEFT_X,
-    METRICS_MOBILITY_LEFT_X,
-    METRICS_FTI_LEFT_X,
-]
 
 
 # =============================================================================
@@ -222,11 +195,8 @@ class ColorScheme:
     missed_win: str = "#9b2020"       # Deep red
 
     # Metric plot line colors (dark, readable on light background)
-    plot_white:      str = "#444444"  # Dark gray     — White's series
-    plot_black:      str = "#1a3a6a"  # Dark navy     — Black's series
     plot_net_pos:    str = "#2e6b10"  # Dark green    — net advantage (positive)
     plot_net_neg:    str = "#8b1a1a"  # Dark red      — net advantage (negative)
-    plot_fti:        str = "#7a1030"  # Deep crimson  — FTI line
     plot_zero_line:  str = "#999999"  # Medium gray   — y=0 reference line
     plot_cursor:     str = "#1a1a1a"  # Near-black    — current-move cursor
 
@@ -388,26 +358,12 @@ def create_layout_guides() -> VGroup:
             **style
         ))
 
-    # ── Vertical dividers between sub-plots ──────────────────────────────────
-    for i in range(1, 4):
-        x = _subplot_left(i) - METRICS_SUBPLOT_GAP / 2
-        guides.add(Line(
-            start=[x, METRICS_TOP_Y,    0],
-            end=[x,   METRICS_BOTTOM_Y, 0],
-            **style
-        ))
-
-    # ── Sub-plot labels ───────────────────────────────────────────────────────
-    for label, cx in zip(
-        METRICS_SUBPLOT_LABELS,
-        [METRICS_EVAL_CENTER_X, METRICS_SPACE_CENTER_X,
-         METRICS_MOBILITY_CENTER_X, METRICS_FTI_CENTER_X]
-    ):
-        t = Text(label, font=FONTS.body_font,
-                 font_size=FONTS.metric_label_size,
-                 color=COLORS.text_secondary)
-        t.move_to([cx, METRICS_TOP_Y - 0.15, 0])
-        guides.add(t)
+    # ── Metrics strip label ───────────────────────────────────────────────────
+    t = Text("Eval", font=FONTS.body_font,
+             font_size=FONTS.metric_label_size,
+             color=COLORS.text_secondary)
+    t.move_to([METRICS_CENTER_X, METRICS_TOP_Y - 0.15, 0])
+    guides.add(t)
 
     # ── Vertical divider between board area and right panels ─────────────────
     guides.add(Line(
@@ -444,8 +400,8 @@ if __name__ == "__main__":
     print()
     print("Right panels:")
     print(f"  Header:      y = {HEADER_TOP_Y:.2f}  to  {HEADER_BOTTOM_Y:.2f}")
-    print(f"  Move list:   y = {MOVE_LIST_TOP_Y:.2f}  to  {MOVE_LIST_BOTTOM_Y:.2f}")
-    print(f"  Commentary:  y = {COMMENTARY_TOP_Y:.2f}  to  {COMMENTARY_BOTTOM_Y:.2f}")
+    print(f"  Moves + commentary: y = {MOVE_LIST_TOP_Y:.2f}  to  {MOVE_LIST_BOTTOM_Y:.2f}")
+    print(f"  Analysis:    y = {COMMENTARY_TOP_Y:.2f}  to  {COMMENTARY_BOTTOM_Y:.2f}")
     print(f"  Panel width: {PANEL_WIDTH:.2f},  centre x: {PANEL_CENTER_X:.2f}")
     print()
     print("Metrics strip:")
@@ -453,8 +409,3 @@ if __name__ == "__main__":
           f"  (height {METRICS_HEIGHT:.2f})")
     print(f"  x = {METRICS_LEFT_X:.2f}  to  {METRICS_RIGHT_X:.2f}"
           f"  (width {METRICS_WIDTH:.2f})")
-    print(f"  Sub-plot width: {METRICS_SUBPLOT_WIDTH:.2f}")
-    print()
-    for label, lx in zip(METRICS_SUBPLOT_LABELS, METRICS_SUBPLOT_LEFT_EDGES):
-        cx = lx + METRICS_SUBPLOT_WIDTH / 2
-        print(f"  {label:<10}  left_x={lx:.2f},  centre_x={cx:.2f}")

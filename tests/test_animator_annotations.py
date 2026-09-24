@@ -14,14 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from animator_game import CommentPanel, MoveData, MoveListPanel
 
-_Z = dict(space_white=0, space_black=0, mobility_white=0, mobility_black=0,
-          king_safety_white=0, king_safety_black=0, threats_white=0,
-          threats_black=0, fti1=0, fti2=0, fti3=0)
-
 
 def _move(ply, san, classification):
     return MoveData(ply, san, "a1a2", ply % 2 == 1, 0, 0, 0, classification,
-                    san, False, False, [], **_Z)
+                    san, False, False, [])
 
 
 class MoveListMarksTest(unittest.TestCase):

@@ -159,6 +159,9 @@ class AnalysisJsonTest(unittest.TestCase):
         move = data["moves"][0]
         for key in ("search_depth", "search_depth_after", "search_lines", "best_line"):
             self.assertIn(key, move)
+        # Board-counting heuristics were removed: everything comes from Stockfish
+        self.assertEqual([k for k in move if k.startswith(("space_", "mobility_",
+                          "king_safety_", "threats_", "fti"))], [])
         engine = data["engine"]
         self.assertEqual((engine["threads"], engine["hash_mb"], engine["depth"],
                           engine["lines"]), (1, 32, 4, 2))

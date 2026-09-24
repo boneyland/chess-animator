@@ -21,16 +21,12 @@ Requirements:
     - Stockfish (if running live analysis)
 
 Changes from previous version:
-    - MoveData extended with full positional fields (space, mobility,
-      king_safety, threats, fti1/2/3) read from positional_eval sub-dict
-    - AnalysisData.from_json_file() correctly unpacks nested positional_eval
     - AnimatedGame reads config from CHESS_ANIMATOR_CONFIG env var (JSON file)
       instead of the broken --user_args Manim CLI approach
     - stockfish_path now passed through config JSON so --stockfish flag works
     - Analyzer module renamed from chess_game_analyzer6y to chess_game_analyzer
     - Animation loop accepts optional MetricPlotPanel (imported from
       animator_metrics.py when available)
-    - QuickDemo updated with positional fields for self-contained testing
     - Color scheme updated to light background with dark text and plot lines
 """
 
@@ -165,49 +161,13 @@ try:
 except ImportError:
     METRICS_AVAILABLE = False
 
-# FTI weight constants (mirrors chess_game_analyzer.py)
-THREATS_SCALE_FACTOR = 20.0
-FTI1_WEIGHTS = (0.25, 0.25, 0.25, 0.25)   # Harmonious
-FTI2_WEIGHTS = (0.60, 0.10, 0.00, 0.30)   # Tactical
-FTI3_WEIGHTS = (0.70, 0.10, 0.10, 0.10)   # Strategic
-
-
-# =============================================================================
-# FTI Computation
-# =============================================================================
-
-def compute_fti(space_adv: float, mob_adv: float, ks_adv: float,
-                thr_adv: float, weights: Tuple[float, float, float, float]) -> float:
-    """
-    Compute the Fireteam Index from net positional advantages.
-
-    Args:
-        space_adv:  space_white   - space_black
-        mob_adv:    mobility_white - mobility_black
-        ks_adv:     king_safety_white - king_safety_black
-        thr_adv:    (threats_white - threats_black) / THREATS_SCALE_FACTOR  (pre-scaled)
-        weights:    (w_space, w_mobility, w_king_safety, w_threats)
-
-    Returns:
-        FTI score (positive = White advantage)
-    """
-    ws, wm, wk, wt = weights
-    return ws * space_adv + wm * mob_adv + wk * ks_adv + wt * thr_adv
-
-
 # =============================================================================
 # Analysis Data Loading
 # =============================================================================
 
 @dataclass
 class MoveData:
-    """
-    Simplified move data for animation.
-
-    Positional fields (space, mobility, king_safety, threats) are per-side
-    values read directly from the positional_eval sub-dict in the JSON.
-    FTI values are computed at load time.
-    """
+    """Simplified move data for animation, all of it from Stockfish's analysis."""
     # Core move info
     ply: int
     move_san: str
@@ -221,21 +181,6 @@ class MoveData:
     is_capture: bool
     is_check: bool
     pv_line: List[str]
-
-    # Positional metrics (from positional_eval sub-dict)
-    space_white: float = 0.0
-    space_black: float = 0.0
-    mobility_white: float = 0.0
-    mobility_black: float = 0.0
-    king_safety_white: float = 0.0
-    king_safety_black: float = 0.0
-    threats_white: float = 0.0
-    threats_black: float = 0.0
-
-    # Fireteam Index variants (computed at load time)
-    fti1: float = 0.0   # Harmonious
-    fti2: float = 0.0   # Tactical
-    fti3: float = 0.0   # Strategic
 
     # Mate annotations from the analyzer (see EnhancedMoveAnalysis)
     mate_advice: str = ""
@@ -252,51 +197,9 @@ class MoveData:
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "MoveData":
         """
-        Build a MoveData from a JSON-decoded dict.
-
-        Handles two JSON shapes:
-        1. Produced by chess_game_analyzer directly (nested positional_eval
-           sub-dict with raw field names like space_white_mg).
-        2. Produced by AnalysisData.save_to_json() via asdict() on MoveData
-           (flat fields: space_white, mobility_white, etc. at top level).
+        Build a MoveData from a JSON-decoded dict.  Fields it doesn't know,
+        such as the positional metrics in older analysis files, are ignored.
         """
-        # --- Try nested positional_eval sub-dict first (analyzer JSON) -------
-        pe = d.get("positional_eval") or {}
-
-        if pe:
-            space_white    = float(pe.get("space_white_mg", 0.0))
-            space_black    = float(pe.get("space_black_mg", 0.0))
-            mob_w_mg       = float(pe.get("mobility_white_mg", 0.0))
-            mob_w_eg       = float(pe.get("mobility_white_eg", 0.0))
-            mob_b_mg       = float(pe.get("mobility_black_mg", 0.0))
-            mob_b_eg       = float(pe.get("mobility_black_eg", 0.0))
-            mobility_white = (mob_w_mg + mob_w_eg) / 2.0
-            mobility_black = (mob_b_mg + mob_b_eg) / 2.0
-            ks_white       = float(pe.get("king_safety_white_mg", 0.0))
-            ks_black       = float(pe.get("king_safety_black_mg", 0.0))
-            thr_white      = float(pe.get("threats_white_mg", 0.0))
-            thr_black      = float(pe.get("threats_black_mg", 0.0))
-        else:
-            # --- Flat fields (saved by AnalysisData.save_to_json) ------------
-            space_white    = float(d.get("space_white",    0.0))
-            space_black    = float(d.get("space_black",    0.0))
-            mobility_white = float(d.get("mobility_white", 0.0))
-            mobility_black = float(d.get("mobility_black", 0.0))
-            ks_white       = float(d.get("king_safety_white", 0.0))
-            ks_black       = float(d.get("king_safety_black", 0.0))
-            thr_white      = float(d.get("threats_white",  0.0))
-            thr_black      = float(d.get("threats_black",  0.0))
-
-        # --- Compute net advantages for FTI ----------------------------------
-        space_adv = space_white - space_black
-        mob_adv   = mobility_white - mobility_black
-        ks_adv    = ks_white - ks_black
-        thr_adv   = (thr_white - thr_black) / THREATS_SCALE_FACTOR
-
-        fti1 = compute_fti(space_adv, mob_adv, ks_adv, thr_adv, FTI1_WEIGHTS)
-        fti2 = compute_fti(space_adv, mob_adv, ks_adv, thr_adv, FTI2_WEIGHTS)
-        fti3 = compute_fti(space_adv, mob_adv, ks_adv, thr_adv, FTI3_WEIGHTS)
-
         return cls(
             ply=d.get("ply", 0),
             move_san=d.get("move_san", ""),
@@ -310,17 +213,6 @@ class MoveData:
             is_capture=d.get("is_capture", False),
             is_check=d.get("is_check", False),
             pv_line=d.get("pv_line", []),
-            space_white=space_white,
-            space_black=space_black,
-            mobility_white=mobility_white,
-            mobility_black=mobility_black,
-            king_safety_white=ks_white,
-            king_safety_black=ks_black,
-            threats_white=thr_white,
-            threats_black=thr_black,
-            fti1=fti1,
-            fti2=fti2,
-            fti3=fti3,
             mate_advice=d.get("mate_advice", ""),
             mate_line=d.get("mate_line", ""),
             best_line=list(d.get("best_line", [])),
@@ -362,10 +254,7 @@ class AnalysisData:
     def from_json_file(cls, json_path: Path,
                        pgn_path: Optional[Path] = None) -> "AnalysisData":
         """
-        Load analysis from a JSON file produced by chess_game_analyzer.py.
-
-        The JSON contains a 'moves' list where each element has a nested
-        'positional_eval' dict — MoveData.from_dict() handles that unpacking.
+        Load analysis from a JSON file written by run_animator.py --analyze.
 
         If pgn_path exists, the game details (players, event, opening...)
         are read from its headers, so editing them doesn't need a fresh
@@ -437,22 +326,6 @@ class AnalysisData:
         # Build MoveData objects directly from EnhancedMoveAnalysis
         moves = []
         for m in result.moves:
-            pe = m.positional_eval
-
-            space_white     = pe.space_white      if pe else 0.0
-            space_black     = pe.space_black      if pe else 0.0
-            mob_white       = pe.mobility_white   if pe else 0.0
-            mob_black       = pe.mobility_black   if pe else 0.0
-            ks_white        = pe.king_safety_white if pe else 0.0
-            ks_black        = pe.king_safety_black if pe else 0.0
-            thr_white       = pe.threats_white    if pe else 0.0
-            thr_black       = pe.threats_black    if pe else 0.0
-
-            space_adv = space_white - space_black
-            mob_adv   = mob_white - mob_black
-            ks_adv    = ks_white - ks_black
-            thr_adv   = (thr_white - thr_black) / THREATS_SCALE_FACTOR
-
             moves.append(MoveData(
                 ply=m.ply,
                 move_san=m.move_san,
@@ -466,17 +339,6 @@ class AnalysisData:
                 is_capture=m.is_capture,
                 is_check=m.is_check,
                 pv_line=m.pv_line,
-                space_white=space_white,
-                space_black=space_black,
-                mobility_white=mob_white,
-                mobility_black=mob_black,
-                king_safety_white=ks_white,
-                king_safety_black=ks_black,
-                threats_white=thr_white,
-                threats_black=thr_black,
-                fti1=compute_fti(space_adv, mob_adv, ks_adv, thr_adv, FTI1_WEIGHTS),
-                fti2=compute_fti(space_adv, mob_adv, ks_adv, thr_adv, FTI2_WEIGHTS),
-                fti3=compute_fti(space_adv, mob_adv, ks_adv, thr_adv, FTI3_WEIGHTS),
                 mate_advice=m.mate_advice,
                 mate_line=m.mate_line,
                 best_line=m.best_line,
@@ -1292,11 +1154,7 @@ class QuickDemo(Scene):
     """
     Quick demo using hard-coded moves.
     Tests the full animation pipeline — board, eval bar, move list,
-    commentary — without requiring any external files.
-
-    MoveData objects now include zeroed positional fields so the
-    dataclass constructor is satisfied; update with real values to
-    test MetricPlotPanel rendering.
+    analysis — without requiring any external files.
     """
 
     def construct(self):
@@ -1326,34 +1184,28 @@ class QuickDemo(Scene):
                  comments.get_mobject(), analysis_box.get_mobject())
         self.wait(1)
 
-        # Minimal positional fields — all zero for demo purposes.
         # (ply, san, uci, is_white, ev_before, ev_after, ev_loss,
         #  classif, best_san, is_capture, is_check, pv_line)
-        _z = dict(space_white=0, space_black=0,
-                  mobility_white=0, mobility_black=0,
-                  king_safety_white=0, king_safety_black=0,
-                  threats_white=0, threats_black=0,
-                  fti1=0, fti2=0, fti3=0)
 
         demo_moves = [
-            MoveData(1,  "e4",    "e2e4", True,   0,   30,   0, "book",    "e4",  False, False, [], **_z),
-            MoveData(2,  "e5",    "e7e5", False,  30,   25,   5, "book",    "e5",  False, False, [], **_z),
-            MoveData(3,  "Nf3",   "g1f3", True,   25,   35,   0, "best",    "Nf3", False, False, [], **_z),
-            MoveData(4,  "Nc6",   "b8c6", False,  35,   30,   5, "good",    "Nc6", False, False, [], **_z),
-            MoveData(5,  "Bb5",   "f1b5", True,   30,   40,   0, "best",    "Bb5", False, False, [], **_z),
-            MoveData(6,  "a6",    "a7a6", False,  40,   35,   5, "good",    "a6",  False, False, [], **_z),
-            MoveData(7,  "Ba4",   "b5a4", True,   35,   40,   0, "good",    "Ba4", False, False, [], **_z),
-            MoveData(8,  "Nf6",   "g8f6", False,  40,   35,   5, "best",    "Nf6", False, False, [], **_z),
-            MoveData(9,  "O-O",   "e1g1", True,   35,   40,   0, "best",    "O-O", False, False, [], **_z),
-            MoveData(10, "Be7",   "f8e7", False,  40,   35,   5, "good",    "Be7", False, False, [], **_z),
-            MoveData(11, "Re1",   "f1e1", True,   35,   45,   0, "good",    "Re1", False, False, [], **_z),
-            MoveData(12, "b5",    "b7b5", False,  45,   40,   5, "good",    "b5",  False, False, [], **_z),
-            MoveData(13, "Bb3",   "a4b3", True,   40,   50,   0, "good",    "Bb3", False, False, [], **_z),
-            MoveData(14, "d6",    "d7d6", False,  50,   45,   5, "good",    "d6",  False, False, [], **_z),
-            MoveData(15, "c3",    "c2c3", True,   45,   55,   0, "good",    "c3",  False, False, [], **_z),
-            MoveData(16, "O-O",   "e8g8", False,  55,   50,   5, "good",    "O-O", False, False, [], **_z),
-            MoveData(17, "h3",    "h2h3", True,   50,   60,   0, "good",    "h3",  False, False, [], **_z),
-            MoveData(18, "Na5",   "c6a5", False,  60,  180, 140, "blunder", "Nb8", False, False, [], **_z),
+            MoveData(1,  "e4",    "e2e4", True,   0,   30,   0, "book",    "e4",  False, False, []),
+            MoveData(2,  "e5",    "e7e5", False,  30,   25,   5, "book",    "e5",  False, False, []),
+            MoveData(3,  "Nf3",   "g1f3", True,   25,   35,   0, "best",    "Nf3", False, False, []),
+            MoveData(4,  "Nc6",   "b8c6", False,  35,   30,   5, "good",    "Nc6", False, False, []),
+            MoveData(5,  "Bb5",   "f1b5", True,   30,   40,   0, "best",    "Bb5", False, False, []),
+            MoveData(6,  "a6",    "a7a6", False,  40,   35,   5, "good",    "a6",  False, False, []),
+            MoveData(7,  "Ba4",   "b5a4", True,   35,   40,   0, "good",    "Ba4", False, False, []),
+            MoveData(8,  "Nf6",   "g8f6", False,  40,   35,   5, "best",    "Nf6", False, False, []),
+            MoveData(9,  "O-O",   "e1g1", True,   35,   40,   0, "best",    "O-O", False, False, []),
+            MoveData(10, "Be7",   "f8e7", False,  40,   35,   5, "good",    "Be7", False, False, []),
+            MoveData(11, "Re1",   "f1e1", True,   35,   45,   0, "good",    "Re1", False, False, []),
+            MoveData(12, "b5",    "b7b5", False,  45,   40,   5, "good",    "b5",  False, False, []),
+            MoveData(13, "Bb3",   "a4b3", True,   40,   50,   0, "good",    "Bb3", False, False, []),
+            MoveData(14, "d6",    "d7d6", False,  50,   45,   5, "good",    "d6",  False, False, []),
+            MoveData(15, "c3",    "c2c3", True,   45,   55,   0, "good",    "c3",  False, False, []),
+            MoveData(16, "O-O",   "e8g8", False,  55,   50,   5, "good",    "O-O", False, False, []),
+            MoveData(17, "h3",    "h2h3", True,   50,   60,   0, "good",    "h3",  False, False, []),
+            MoveData(18, "Na5",   "c6a5", False,  60,  180, 140, "blunder", "Nb8", False, False, []),
         ]
 
         position = chess.Board()
