@@ -120,6 +120,28 @@ class SearchSummaryTest(unittest.TestCase):
 
 
 @unittest.skipUnless(STOCKFISH, "Stockfish not found on PATH")
+class LinesTest(unittest.TestCase):
+
+    def test_lines_sets_how_many_lines_are_searched_before_each_move(self):
+        with EnhancedGameAnalyzer(STOCKFISH, depth=4, threads=1, hash_mb=16,
+                                  lines=1) as analyzer:
+            result = analyzer.analyze_game(SHORT_GAME)
+        self.assertTrue(all(m.search_lines == 1 for m in result.moves))
+        self.assertTrue(all(m.best_line for m in result.moves))
+
+    def test_lines_flag_is_passed_to_the_analysis(self):
+        import run_animator
+
+        argv = ["run_animator.py", "sample_game", "--analyze", "--lines", "1"]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(run_animator, "run_analysis", return_value=False) as run, \
+             mock.patch("builtins.print"):
+            with self.assertRaises(SystemExit):
+                run_animator.main()
+        self.assertEqual(run.call_args.kwargs.get("lines"), 1)
+
+
+@unittest.skipUnless(STOCKFISH, "Stockfish not found on PATH")
 class AnalysisJsonTest(unittest.TestCase):
 
     def test_json_records_search_details_and_engine_settings(self):
@@ -131,7 +153,7 @@ class AnalysisJsonTest(unittest.TestCase):
         pgn.write_text(SHORT_GAME)
         with mock.patch("builtins.print"):
             ok = run_animator.run_analysis(pgn, out, STOCKFISH, 4,
-                                           threads=1, hash_mb=32)
+                                           threads=1, hash_mb=32, lines=2)
         self.assertTrue(ok)
         data = json.loads(out.read_text())
         move = data["moves"][0]
@@ -139,7 +161,8 @@ class AnalysisJsonTest(unittest.TestCase):
             self.assertIn(key, move)
         engine = data["engine"]
         self.assertEqual((engine["threads"], engine["hash_mb"], engine["depth"],
-                          engine["lines"]), (1, 32, 4, ANALYSIS_LINES))
+                          engine["lines"]), (1, 32, 4, 2))
+        self.assertEqual(move["search_lines"], 2)
         self.assertTrue(engine["name"].startswith("Stockfish"))
 
 

@@ -413,7 +413,7 @@ class AnalysisData:
         Prefer pre-computed JSON (from_json_file) for iteration speed.
         """
         try:
-            from chess_game_analyzer import ANALYSIS_LINES, EnhancedGameAnalyzer
+            from chess_game_analyzer import EnhancedGameAnalyzer
         except ImportError:
             raise ImportError("chess_game_analyzer.py must be in the Python path")
 
@@ -491,7 +491,7 @@ class AnalysisData:
             white_accuracy=result.white_stats.get("accuracy", 0.0),
             black_accuracy=result.black_stats.get("accuracy", 0.0),
             engine={"name": analyzer.engine_version, "depth": depth,
-                    "time_limit": analyzer.time_limit, "lines": ANALYSIS_LINES,
+                    "time_limit": analyzer.time_limit, "lines": analyzer.lines,
                     "threads": analyzer.threads, "hash_mb": analyzer.hash_mb},
         )
 

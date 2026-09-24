@@ -30,6 +30,8 @@ Options:
     --threads N CPU threads for Stockfish  (default: 1, or all cores but
                 one with --time-limit, where extra threads help)
     --hash MB   Stockfish hash table size  (default: 256)
+    --lines N   Lines Stockfish searches before each move (default: 3);
+                1 is several times faster and loses only the alternatives
     --stockfish PATH  Path to Stockfish binary  (default: auto-detect)
 
 Examples:
@@ -113,7 +115,8 @@ def run_analysis(pgn_path: Path, output_path: Path,
                  stockfish: Optional[str], depth: int,
                  time_limit: Optional[float] = None,
                  threads: Optional[int] = None,
-                 hash_mb: Optional[int] = None) -> bool:
+                 hash_mb: Optional[int] = None,
+                 lines: Optional[int] = None) -> bool:
     """
     Run chess_game_analyzer on pgn_path and save JSON to output_path.
     Returns True on success.
@@ -147,7 +150,8 @@ def run_analysis(pgn_path: Path, output_path: Path,
 
     try:
         with EnhancedGameAnalyzer(stockfish, depth, time_limit,
-                                  threads=threads, hash_mb=hash_mb) as analyzer:
+                                  threads=threads, hash_mb=hash_mb,
+                                  lines=lines or ANALYSIS_LINES) as analyzer:
             result = analyzer.analyze_game(str(pgn_path), progress=show_progress)
     except Exception as exc:
         if interactive and last_len:
@@ -233,7 +237,7 @@ def run_analysis(pgn_path: Path, output_path: Path,
                 "name":       analyzer.engine_version,
                 "depth":      depth,
                 "time_limit": time_limit,
-                "lines":      ANALYSIS_LINES,
+                "lines":      analyzer.lines,
                 "threads":    analyzer.threads,
                 "hash_mb":    analyzer.hash_mb,
             },
@@ -295,6 +299,12 @@ def main():
              "with --time-limit).",
     )
     parser.add_argument(
+        "--lines", type=int, default=None, metavar="N",
+        help="Lines (MultiPV) Stockfish searches before each move: the best "
+             "move plus alternatives (default: 3). 1 is several times faster "
+             "and loses only the alternatives.",
+    )
+    parser.add_argument(
         "--hash", type=int, default=None, metavar="MB", dest="hash_mb",
         help="Stockfish hash table size in MB (default: 256).",
     )
@@ -337,7 +347,7 @@ def main():
             sys.exit(1)
         ok = run_analysis(pgn_path, analysis_path, args.stockfish, args.depth,
                           time_limit=args.time_limit, threads=args.threads,
-                          hash_mb=args.hash_mb)
+                          hash_mb=args.hash_mb, lines=args.lines)
         if not ok:
             sys.exit(1)
 

@@ -259,9 +259,10 @@ def winning_chances(eval_cp: float) -> float:
 # Moves within this threshold of the best move will be suggested as alternatives
 PLAYABLE_THRESHOLD = 50
 
-# Stockfish lines (MultiPV) searched before each move: the best move, plus
-# alternatives to suggest.  Each extra line shares the search time, so the
-# depth reached before a move is lower than after it.
+# Default Stockfish lines (MultiPV) searched before each move: the best move,
+# plus alternatives to suggest.  Each extra line costs search time: at depth
+# 20, 3 lines took about 4.5x as long as 1.  The best move, best line, ratings
+# and evals come from the first line, so fewer lines lose only alternatives.
 ANALYSIS_LINES = 3
 
 # Stockfish transposition-table size in MB (Stockfish's own default is 16)
@@ -1152,11 +1153,13 @@ class EnhancedGameAnalyzer:
                  depth: int = 20, time_limit: Optional[float] = None,
                  extract_positional: bool = True,
                  threads: Optional[int] = None,
-                 hash_mb: Optional[int] = None):
+                 hash_mb: Optional[int] = None,
+                 lines: int = ANALYSIS_LINES):
         self.stockfish_path = find_stockfish(stockfish_path)
         self.depth = depth
         self.threads = threads or default_search_threads(time_limit)
         self.hash_mb = hash_mb or DEFAULT_HASH_MB
+        self.lines = max(1, lines)
         # Seconds per search, on top of depth; None = no time cap
         self.time_limit = time_limit
         self.extract_positional = extract_positional
@@ -1300,7 +1303,7 @@ class EnhancedGameAnalyzer:
                 info_before_list = self.engine.analyse(
                     board, 
                     chess.engine.Limit(depth=self.depth, time=self.time_limit),
-                    multipv=ANALYSIS_LINES
+                    multipv=self.lines
                 )
                 # Handle both single dict (multipv=1) and list (multipv>1) returns
                 if isinstance(info_before_list, dict):
@@ -6022,6 +6025,8 @@ Examples:
                        help="Analysis depth (default: 20)")
     parser.add_argument("-t", "--time", type=float, default=None,
                        help="Max seconds per position, on top of --depth (default: no cap)")
+    parser.add_argument("--lines", type=int, default=ANALYSIS_LINES,
+                       help=f"Lines (MultiPV) searched before each move (default: {ANALYSIS_LINES})")
     parser.add_argument("--no-diagrams", action="store_true",
                        help="Don't include position diagrams")
     parser.add_argument("--no-methodology", action="store_true",
@@ -6061,7 +6066,7 @@ Examples:
     
     if args.book:
         # Multi-game book mode
-        with EnhancedGameAnalyzer(args.stockfish, args.depth, args.time) as analyzer:
+        with EnhancedGameAnalyzer(args.stockfish, args.depth, args.time, lines=args.lines) as analyzer:
             if not args.quiet:
                 print(f"Analyzing all games with {analyzer.engine_version}...")
             
@@ -6129,7 +6134,7 @@ Examples:
     
     else:
         # Single game mode (original behavior)
-        with EnhancedGameAnalyzer(args.stockfish, args.depth, args.time) as analyzer:
+        with EnhancedGameAnalyzer(args.stockfish, args.depth, args.time, lines=args.lines) as analyzer:
             if not args.quiet:
                 print(f"Analyzing with {analyzer.engine_version}...")
             
