@@ -296,17 +296,24 @@ class AnalysisData:
     @classmethod
     def from_analyzer(cls, pgn_path: Path,
                       stockfish_path: Optional[str] = None,
-                      depth: int = 20) -> "AnalysisData":
+                      depth: int = 20,
+                      time_limit: Optional[float] = None,
+                      lines: Optional[int] = None,
+                      threads: Optional[int] = None,
+                      hash_mb: Optional[int] = None) -> "AnalysisData":
         """
-        Run live analysis using chess_game_analyzer.py.
+        Run live analysis using chess_game_analyzer.py; the engine settings
+        are those of EnhancedGameAnalyzer (lines=None: ANALYSIS_LINES).
         Prefer pre-computed JSON (from_json_file) for iteration speed.
         """
         try:
-            from chess_game_analyzer import EnhancedGameAnalyzer
+            from chess_game_analyzer import ANALYSIS_LINES, EnhancedGameAnalyzer
         except ImportError:
             raise ImportError("chess_game_analyzer.py must be in the Python path")
 
-        with EnhancedGameAnalyzer(stockfish_path, depth) as analyzer:
+        with EnhancedGameAnalyzer(stockfish_path, depth, time_limit,
+                                  threads=threads, hash_mb=hash_mb,
+                                  lines=ANALYSIS_LINES if lines is None else lines) as analyzer:
             result = analyzer.analyze_game(str(pgn_path))
 
         game_info = GameInfo(
@@ -323,29 +330,7 @@ class AnalysisData:
             eco=result.opening_eco,
         )
 
-        # Build MoveData objects directly from EnhancedMoveAnalysis
-        moves = []
-        for m in result.moves:
-            moves.append(MoveData(
-                ply=m.ply,
-                move_san=m.move_san,
-                move_uci=m.move_uci,
-                is_white_move=m.is_white_move,
-                eval_before=m.eval_before,
-                eval_after=m.eval_after,
-                eval_loss=m.eval_loss,
-                classification=m.classification,
-                best_move_san=m.best_move_san,
-                is_capture=m.is_capture,
-                is_check=m.is_check,
-                pv_line=m.pv_line,
-                mate_advice=m.mate_advice,
-                mate_line=m.mate_line,
-                best_line=m.best_line,
-                search_depth=m.search_depth,
-                search_depth_after=m.search_depth_after,
-                search_lines=m.search_lines,
-            ))
+        moves = [MoveData.from_dict(asdict(m)) for m in result.moves]
 
         return cls(
             game_info=game_info,

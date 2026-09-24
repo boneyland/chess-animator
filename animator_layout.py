@@ -76,7 +76,6 @@ METRICS_LEFT_X  = FRAME_LEFT_X  + MARGIN   # ~-6.81
 METRICS_RIGHT_X = FRAME_RIGHT_X - MARGIN   # ~ 6.81
 METRICS_WIDTH   = METRICS_RIGHT_X - METRICS_LEFT_X
 METRICS_CENTER_X = 0.0                     # centred on frame
-METRICS_CENTER_Y = (METRICS_TOP_Y + METRICS_BOTTOM_Y) / 2
 
 
 # =============================================================================

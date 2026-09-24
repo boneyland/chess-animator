@@ -58,8 +58,11 @@ import os
 import subprocess
 import sys
 import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
+
+from chess_game_analyzer import ANALYSIS_LINES, EnhancedGameAnalyzer, positive_int
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +120,7 @@ def run_analysis(pgn_path: Path, output_path: Path,
                  time_limit: Optional[float] = None,
                  threads: Optional[int] = None,
                  hash_mb: Optional[int] = None,
-                 lines: Optional[int] = None) -> bool:
+                 lines: int = ANALYSIS_LINES) -> bool:
     """
     Run chess_game_analyzer on pgn_path and save JSON to output_path.
     Returns True on success.
@@ -127,11 +130,6 @@ def run_analysis(pgn_path: Path, output_path: Path,
     """
     cap = f", max {time_limit:g}s per position" if time_limit else ""
     print(f"Running Stockfish analysis (depth {depth}{cap}) on {pgn_path} …")
-    try:
-        from chess_game_analyzer import ANALYSIS_LINES, EnhancedGameAnalyzer
-    except ImportError:
-        print("Error: chess_game_analyzer.py not found on Python path.")
-        return False
 
     # In a terminal, redraw one line in place; when piped, print plain lines
     interactive = sys.stdout.isatty()
@@ -152,7 +150,7 @@ def run_analysis(pgn_path: Path, output_path: Path,
     try:
         with EnhancedGameAnalyzer(stockfish, depth, time_limit,
                                   threads=threads, hash_mb=hash_mb,
-                                  lines=lines or ANALYSIS_LINES) as analyzer:
+                                  lines=lines) as analyzer:
             result = analyzer.analyze_game(str(pgn_path), progress=show_progress)
     except Exception as exc:
         if interactive and last_len:
@@ -161,28 +159,8 @@ def run_analysis(pgn_path: Path, output_path: Path,
         return False
 
     try:
-        moves_out = []
-        for m in result.moves:
-            moves_out.append({
-                "ply":              m.ply,
-                "move_san":         m.move_san,
-                "move_uci":         m.move_uci,
-                "is_white_move":    m.is_white_move,
-                "eval_before":      float(m.eval_before),
-                "eval_after":       float(m.eval_after),
-                "eval_loss":        float(m.eval_loss),
-                "classification":   m.classification,
-                "best_move_san":    m.best_move_san or "",
-                "is_capture":       m.is_capture,
-                "is_check":         m.is_check,
-                "pv_line":          m.pv_line or [],
-                "mate_advice":      m.mate_advice,
-                "mate_line":        m.mate_line,
-                "best_line":        m.best_line,
-                "search_depth":     m.search_depth,
-                "search_depth_after": m.search_depth_after,
-                "search_lines":     m.search_lines,
-            })
+        # Every field the analyzer records; the animator ignores ones it doesn't use
+        moves_out = [asdict(m) for m in result.moves]
 
         data = {
             "white":        result.white,
@@ -265,7 +243,7 @@ def main():
              "with --time-limit).",
     )
     parser.add_argument(
-        "--lines", type=int, default=None, metavar="N",
+        "--lines", type=positive_int, default=ANALYSIS_LINES, metavar="N",
         help="Lines (MultiPV) Stockfish searches before each move: the best "
              "move plus alternatives (default: 3). 1 is several times faster, "
              "but loses the alternatives and makes evals somewhat less accurate.",

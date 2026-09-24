@@ -11,6 +11,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from dataclasses import fields
 from pathlib import Path
 from unittest import mock
 
@@ -18,7 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import chess.engine
 
-from chess_game_analyzer import ANALYSIS_LINES, EnhancedGameAnalyzer, default_threads
+from chess_game_analyzer import (ANALYSIS_LINES, EnhancedGameAnalyzer,
+                                 EnhancedMoveAnalysis, default_threads)
 
 STOCKFISH = shutil.which("stockfish")
 SHORT_GAME = '[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 *\n'
@@ -140,6 +142,20 @@ class LinesTest(unittest.TestCase):
                 run_animator.main()
         self.assertEqual(run.call_args.kwargs.get("lines"), 1)
 
+    def test_lines_below_one_are_rejected(self):
+        import run_animator
+        import chess_game_analyzer
+
+        for main, argv in ((run_animator.main, ["run_animator.py", "g", "--analyze"]),
+                           (chess_game_analyzer.main, ["chess_game_analyzer.py", "g.pgn"])):
+            with mock.patch.object(sys, "argv", argv + ["--lines", "0"]), \
+                 mock.patch("sys.stderr"):
+                with self.assertRaises(SystemExit) as exit_:
+                    main()
+            self.assertEqual(exit_.exception.code, 2)
+        with self.assertRaises(ValueError):
+            EnhancedGameAnalyzer(STOCKFISH, lines=0)
+
 
 @unittest.skipUnless(STOCKFISH, "Stockfish not found on PATH")
 class AnalysisJsonTest(unittest.TestCase):
@@ -157,6 +173,8 @@ class AnalysisJsonTest(unittest.TestCase):
         self.assertTrue(ok)
         data = json.loads(out.read_text())
         move = data["moves"][0]
+        # Every field the analyzer records, so none goes missing from the file
+        self.assertEqual(set(move), {f.name for f in fields(EnhancedMoveAnalysis)})
         for key in ("search_depth", "search_depth_after", "search_lines", "best_line"):
             self.assertIn(key, move)
         # Board-counting heuristics were removed: everything comes from Stockfish
