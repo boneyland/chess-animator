@@ -6,7 +6,9 @@ A Python pipeline that turns a PGN chess game into an annotated video using [Man
 
 ## Example Output
 
-The 16:9 frame is divided into three zones:
+Rendered games are on [this YouTube playlist](https://www.youtube.com/watch?v=hScw3EaoxNk&list=PLSwHwWPf_04RVNjMkisroM9gFSEWDFMP4).
+
+Each frame is laid out like this:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -14,14 +16,16 @@ The 16:9 frame is divided into three zones:
 │  Bar  │   Chess Board      │  Move List                 │
 │       │                    │  Commentary / Analysis     │
 ├─────────────────────────────────────────────────────────┤
-│   Eval [-4, 4]  │  Space  │  Mobility  │  King Safety  │
+│ Eval win chance │  Space  │  Mobility  │  King Safety  │
 └─────────────────────────────────────────────────────────┘
 ```
 
-- **Eval bar** — white/black fill animated each move, scaled to ±4 pawns.
-- **Move list** — scrolling, color-coded by move quality (blunder = red, brilliant = teal, etc.).
-- **Commentary** — engine annotation or your own hand-written notes loaded from a text file.
-- **Metrics strip** — four plots revealed one move at a time, auto-scaled to the game's actual data range, with the range shown in the title.
+- **Eval bar:** Stockfish's evaluation, shown as a number, as `M3` for a forced mate, or as `1-0` / `0-1` at checkmate. The fill uses Lichess's win-probability curve, so a big advantage fills most of the bar but only a forced mate fills all of it.
+- **Move list:** scrolls as the game goes on. Each move is colored by quality, for example red for blunders and teal for brilliant moves.
+- **Commentary:** your own notes if you've written any (see [Adding Your Own Commentary](#adding-your-own-commentary)), otherwise the engine's annotation.
+- **Metrics strip:** four plots that extend by one point per move. Eval shows White's win chance from -1 to +1. Space, Mobility and King Safety scale to the range the game actually covers, and that range is printed next to each title.
+
+Each move stays on screen for about 1.6 seconds.
 
 ---
 
@@ -106,7 +110,7 @@ python run_animator.py sample_game --analyze --depth 22 \
     --stockfish /opt/homebrew/bin/stockfish
 ```
 
-By default Stockfish is found automatically: the `STOCKFISH_PATH` environment variable if set, then `stockfish` on your `PATH`, then any `stockfish*` executable on your `PATH` (so official release names like `stockfish-ubuntu-x86-64-avx2` work unrenamed). If Stockfish isn't on your `PATH`, set `STOCKFISH_PATH` or pass `--stockfish`.
+By default Stockfish is found automatically in this order: the `STOCKFISH_PATH` environment variable if set, then `stockfish` on your `PATH`, then any `stockfish*` executable on your `PATH` (so official release names like `stockfish-ubuntu-x86-64-avx2` work unrenamed). If Stockfish isn't on your `PATH`, set `STOCKFISH_PATH` or pass `--stockfish`.
 
 ### 5. Your own game
 
@@ -132,7 +136,7 @@ Create a plain text file named `sample_game_notes.txt` (or `{game_id}_notes.txt`
 [47] Repetition begins. White has a slight edge but Black holds the balance.
 ```
 
-Comments are word-wrapped automatically to fit the commentary panel. If no notes file is present, the panel falls back to engine annotations (move classification, centipawn loss, current evaluation).
+Comments are word-wrapped automatically to fit the commentary panel. If no notes file is present, the panel falls back to engine annotations: move classification, centipawn loss, current evaluation (or "White mates in 3" / "Checkmate - White wins"), and the best move after a mistake or blunder. Moves that create, lose, or delay a forced mate get Lichess-style mate advice instead, with the mating line the mover had, e.g. `Lost forced checkmate sequence. Mate in 2: Kg6 Kg8 Qb8#`.
 
 ---
 
@@ -142,12 +146,34 @@ Comments are word-wrapped automatically to fit the commentary panel. If no notes
 
 | Metric | What it measures |
 |---|---|
-| **Eval** | Stockfish centipawn evaluation, converted to pawns |
+| **Eval** | Stockfish evaluation, plotted as White's win-probability advantage in [-1, +1] (0 cp → 0, ±300 cp → ±0.5, forced mate → ±1) |
 | **Space** | Control of central territory, weighted by piece count behind the pawn chain |
 | **Mobility** | Legal moves per piece type, weighted and penalized for unsafe squares |
 | **King Safety** | Pawn shield strength, king tropism, and attack units near the king |
 
-The metrics strip auto-scales each plot to the actual range of values in the game (with 15% padding) so variation is always visible regardless of the absolute values. The range is shown next to each plot title, e.g. `King Safety [-0.22, 1.7]`.
+The Eval plot uses a fixed scale, so large evals and forced mates bend toward the edge instead of being clipped. The other three plots auto-scale to the actual range of values in the game (with 15% padding) so variation is always visible regardless of the absolute values. The range is shown next to each plot title, e.g. `King Safety [-0.22, 1.7]`.
+
+### Move classification
+
+Moves are judged by how much they drop the mover's **winning chances** (Lichess's centipawn → win-chance curve, on a -1 to +1 scale) rather than by raw centipawn loss, so losing a pawn at +8 costs far less than losing one at 0:
+
+| Classification | Rule |
+|---|---|
+| Book | Ply ≤ 12 and < 30 cp lost |
+| Best | < 5 cp lost |
+| Excellent | Win-chance drop < 0.04 |
+| Good | < 0.10 |
+| Inaccuracy | < 0.20 |
+| Mistake | < 0.30 |
+| Blunder | ≥ 0.30 |
+
+Forced mates follow Lichess's rules, which override the table above:
+
+- **Checkmate is now unavoidable** (walked into a forced mate): blunder, or mistake / inaccuracy if the mover was already losing badly (below -7 / -10 pawns).
+- **Lost forced checkmate sequence** (had a forced mate, no longer does): blunder, or mistake / inaccuracy if still winning big (above +7 / +10 pawns).
+- **Not the best checkmate sequence** (still mates, but more slowly): excellent.
+
+The thresholds are constants near the top of `chess_game_analyzer.py` (`WIN_DROP_*`, `MATE_*`). Mate advice also appears in the LaTeX report.
 
 ---
 
@@ -171,22 +197,15 @@ manim -pql animator_metrics.py MetricsDebug
 
 ## Customization
 
-### Changing the eval bar scale
+### Changing the eval bar sensitivity
 
-The eval bar is currently scaled to ±4 pawns. To change it, edit `ScaledEvaluationBar._SLOPE` in `animator_game.py`:
-
-```python
-# slope = 0.737063 × (10 / your_range)
-_SLOPE = 1.8427   # ±4 pawns
-_SLOPE = 0.9238   # ±8 pawns
-_SLOPE = 0.737063 # ±10 pawns (original)
-```
-
-Also update the clamp in the animation loop:
+The eval bar maps centipawns to fill with a logistic curve, `1 / (1 + e^(-k·cp))`. To change how quickly it fills, edit `ScaledEvaluationBar._SIGMOID_K` in `animator_game.py`:
 
 ```python
-eval_pawns = max(-4.0, min(4.0, move.eval_after / 100.0))
+_SIGMOID_K = 0.00368208  # Lichess coefficient: +100 cp ≈ 59%, +400 cp ≈ 81%, +1000 cp ≈ 98%
 ```
+
+A larger `k` fills the bar faster. The Eval plot has its own copy of this coefficient (`_EVAL_WIN_K` in `animator_metrics.py`), and move classification uses `WIN_CHANCES_K` in `chess_game_analyzer.py`; keep them in step if you want the bar, plot, and classifications to agree.
 
 ### Swapping the fourth metrics plot
 
@@ -195,19 +214,6 @@ The fourth plot is King Safety. To swap it for Threats (or FTI), edit the `_ks_w
 ### Colors and fonts
 
 All colors and font sizes are in `animator_layout.py` — `ColorScheme` and `Typography` dataclasses at the top of the file.
-
----
-
-## Example Output
-
-> **Screenshot:** To add an illustrative image to this README, render the sample game at low quality, then extract a still from the output video using ffmpeg:
-> ```bash
-> python run_animator.py sample_game --analyze --depth 20
-> # Video is saved to media/videos/animator_game/480p15/AnimatedGame.mp4
-> ffmpeg -i media/videos/animator_game/480p15/AnimatedGame.mp4 \
->        -ss 00:00:10 -vframes 1 docs/screenshot.png
-> ```
-> For examples, see the playlist https://www.youtube.com/watch?v=hScw3EaoxNk&list=PLSwHwWPf_04RVNjMkisroM9gFSEWDFMP4
 
 ---
 
