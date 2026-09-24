@@ -7,8 +7,9 @@ the game is animated.
 
 The evaluation is plotted as White's win-probability advantage in [-1, +1]
 (Lichess's centipawn -> win-chance curve), so large evals and forced mates
-bend towards the edge instead of being clipped.  Segments are green while
-White is better and red while Black is better.
+bend towards the edge instead of being clipped.  The plot starts from the
+starting position's eval, and is green while White is better and red while
+Black is better; a segment that crosses zero changes colour where it crosses.
 
 The plot is built from individual Manim Line segments rather than a
 parametric function, which lets us add exactly one segment per move inside
@@ -29,6 +30,7 @@ from typing import List
 
 from manim import *
 
+from chess_game_analyzer import winning_chances
 from animator_layout import (
     COLORS, FONTS,
     METRICS_TOP_Y, METRICS_BOTTOM_Y, METRICS_CENTER_X,
@@ -57,8 +59,6 @@ _PLOT_DRAW_BOTTOM = METRICS_BOTTOM_Y + _PLOT_BOTTOM_MARGIN
 _PLOT_DRAW_LEFT   = METRICS_LEFT_X + _PLOT_H_MARGIN
 _PLOT_DRAW_WIDTH  = METRICS_WIDTH - 2 * _PLOT_H_MARGIN
 
-_EVAL_WIN_K = 0.00368208   # Lichess logistic coefficient (per centipawn)
-
 # Stroke widths
 _LINE_WIDTH   = 1.5   # data series
 _ZERO_WIDTH   = 0.8   # zero reference line
@@ -69,14 +69,14 @@ _CURSOR_WIDTH = 1.0   # vertical cursor
 # Coordinate helpers
 # =============================================================================
 
-def _x_coord(move_idx: int, total_moves: int) -> float:
+def _x_coord(point_idx: int, total_points: int) -> float:
     """
-    Map a move index (0-based) to an x-coordinate.
-    move_idx == 0 → left edge;  move_idx == total_moves-1 → right edge.
+    Map a point index (0-based) to an x-coordinate.
+    point_idx == 0 → left edge;  point_idx == total_points-1 → right edge.
     """
-    if total_moves <= 1:
+    if total_points <= 1:
         return _PLOT_DRAW_LEFT
-    return _PLOT_DRAW_LEFT + move_idx / (total_moves - 1) * _PLOT_DRAW_WIDTH
+    return _PLOT_DRAW_LEFT + point_idx / (total_points - 1) * _PLOT_DRAW_WIDTH
 
 
 def _y_coord(value: float) -> float:
@@ -85,13 +85,24 @@ def _y_coord(value: float) -> float:
     return _PLOT_DRAW_BOTTOM + (value + 1.0) / 2.0 * _PLOT_HEIGHT
 
 
-def _win_advantage(eval_cp: float) -> float:
+def _segment_lines(x0: float, v0: float, x1: float, v1: float) -> List[Line]:
     """
-    Map a centipawn eval (White's POV) to White's win-probability advantage
-    in [-1, +1]:  0 cp → 0,  ±100 cp → ±0.18,  ±300 cp → ±0.50,
-    ±500 cp → ±0.73,  ±1000 cp → ±0.95,  forced mate → ±1.
+    The plot between two points: one line, or two when it crosses zero, so
+    each part is coloured by the side that is better along it.
     """
-    return 2.0 / (1.0 + math.exp(-_EVAL_WIN_K * eval_cp)) - 1.0
+    points = [(x0, v0), (x1, v1)]
+    if (v0 > 0 > v1) or (v0 < 0 < v1):
+        x_zero = x0 + (x1 - x0) * v0 / (v0 - v1)
+        points.insert(1, (x_zero, 0.0))
+    lines = []
+    for (xa, va), (xb, vb) in zip(points, points[1:]):
+        lines.append(Line(
+            start=[xa, _y_coord(va), 0],
+            end=[xb, _y_coord(vb), 0],
+            stroke_color=COLORS.plot_net_pos if va + vb >= 0 else COLORS.plot_net_neg,
+            stroke_width=_LINE_WIDTH,
+        ))
+    return lines
 
 
 # =============================================================================
@@ -115,8 +126,9 @@ class MetricPlotPanel:
 
     def __init__(self, all_moves: "List[MoveData]"):
         self.total_moves = len(all_moves)
-        self._values = [_win_advantage(m.eval_after) for m in all_moves]
-        self._prev_y = _y_coord(self._values[0]) if self._values else None
+        # One point for the starting position, then one after each move
+        self._values = ([winning_chances(all_moves[0].eval_before)] if all_moves else [])
+        self._values += [winning_chances(m.eval_after) for m in all_moves]
 
         self._segments = VGroup()
         self._cursor = Line(
@@ -156,28 +168,20 @@ class MetricPlotPanel:
 
     def advance_to_move(self, idx: int) -> Animation:
         """
-        Extend the plot by one segment to include move number `idx`
-        (0-based), and slide the cursor to the new position.
+        Extend the plot by one segment, from the position before move `idx`
+        (0-based) to the position after it, and move the cursor there.
 
         Returns an animation that can be played in parallel with the board
         move and panel updates.
         """
-        # idx == 0 is the starting point; there is no segment to draw yet.
-        if idx == 0 or idx >= self.total_moves:
+        if not 0 <= idx < self.total_moves:
             return Wait(0)
 
-        n = self.total_moves
-        value = self._values[idx]
-        x_new, x_old = _x_coord(idx, n), _x_coord(idx - 1, n)
-        y_new = _y_coord(value)
-        segment = Line(
-            start=[x_old, self._prev_y, 0],
-            end=[x_new, y_new, 0],
-            stroke_color=COLORS.plot_net_pos if value >= 0 else COLORS.plot_net_neg,
-            stroke_width=_LINE_WIDTH,
-        )
+        n = len(self._values)
+        x_old, x_new = _x_coord(idx, n), _x_coord(idx + 1, n)
+        segment = VGroup(*_segment_lines(x_old, self._values[idx],
+                                         x_new, self._values[idx + 1]))
         self._segments.add(segment)
-        self._prev_y = y_new
 
         # The cursor is repositioned in place, so it needs no animation
         self._cursor.put_start_and_end_on([x_new, _PLOT_DRAW_BOTTOM, 0],
@@ -205,13 +209,14 @@ class MetricsDebug(Scene):
 
         class _FakeMove:
             def __init__(self, i):
+                self.eval_before = 300 * math.sin(2 * math.pi * (i - 1) / N)
                 self.eval_after = 300 * math.sin(2 * math.pi * i / N)
 
         panel = MetricPlotPanel([_FakeMove(i) for i in range(N)])
         self.add(panel.get_mobject())
         self.wait(0.5)
 
-        for idx in range(1, N):
+        for idx in range(N):
             self.play(panel.advance_to_move(idx), run_time=0.08)
 
         self.wait(2)

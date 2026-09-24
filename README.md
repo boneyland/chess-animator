@@ -28,7 +28,7 @@ Each frame is laid out like this:
 - **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by quality: greens for good moves, brown for book moves, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
 - **Commentary:** your own notes for the current move, from the PGN or a notes file, beside the move list.
 - **Analysis:** Stockfish's view of every move: its rating and the centipawns lost, the evaluation, the best line (up to 6 plies) whenever the move played wasn't rated best, Lichess-style advice when a forced mate appears or is missed, and how deep the search went.
-- **Eval plot:** Stockfish's evaluation as White's win chance from -1 to +1, extending by one point per move across the full width of the frame. Green while White is better, red while Black is.
+- **Eval plot:** Stockfish's evaluation as White's win chance from -1 to +1, starting from the starting position and extending by one point per move across the full width of the frame. Green while White is better, red while Black is; a line that crosses zero changes colour where it crosses.
 
 Each move stays on screen for about 1.6 seconds. A move with a comment stays longer, long enough to read it at about 15 characters a second.
 
@@ -286,7 +286,7 @@ The eval bar maps centipawns to fill with a logistic curve, `1 / (1 + e^(-k·cp)
 _SIGMOID_K = 0.00368208  # Lichess coefficient: +100 cp ≈ 59%, +400 cp ≈ 81%, +1000 cp ≈ 98%
 ```
 
-A larger `k` fills the bar faster. The Eval plot has its own copy of this coefficient (`_EVAL_WIN_K` in `animator_metrics.py`), and move classification uses `WIN_CHANCES_K` in `chess_game_analyzer.py`; keep them in step if you want the bar, plot, and classifications to agree.
+A larger `k` fills the bar faster. The Eval plot and move classification share another copy, `WIN_CHANCES_K` in `chess_game_analyzer.py`; keep the two in step if you want the bar to agree with them.
 
 ### Colors and fonts
 

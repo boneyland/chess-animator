@@ -140,19 +140,38 @@ class CommentHoldTest(unittest.TestCase):
 
 class EvalStripTest(unittest.TestCase):
 
-    def test_one_segment_per_move_coloured_by_who_is_better(self):
-        from animator_layout import COLORS
+    def _plot(self, evals_after):
         from animator_metrics import MetricPlotPanel
 
+        # _move gives every move eval_before 0, so the plot starts at 0
         moves = [_move(i + 1, "e4", "best", "e4", eval_after=cp)
-                 for i, cp in enumerate((0, 150, -200, 50))]
+                 for i, cp in enumerate(evals_after)]
         panel = MetricPlotPanel(moves)
         for idx in range(len(moves)):
             panel.advance_to_move(idx)
-        segments = panel._segments.submobjects
-        self.assertEqual(len(segments), 3)
-        self.assertEqual([s.get_stroke_color().to_hex().lower() for s in segments],
-                         [COLORS.plot_net_pos, COLORS.plot_net_neg, COLORS.plot_net_pos])
+        return panel._segments.submobjects
+
+    def test_one_segment_per_move_starting_from_the_starting_position(self):
+        from animator_metrics import _PLOT_DRAW_LEFT, _y_coord
+
+        segments = self._plot((30, 150, -200, 50))
+        self.assertEqual(len(segments), 4)
+        self.assertAlmostEqual(segments[0][0].get_start()[0], _PLOT_DRAW_LEFT)
+        self.assertAlmostEqual(segments[0][0].get_start()[1], _y_coord(0.0))
+
+    def test_coloured_by_who_is_better_and_split_where_it_crosses_zero(self):
+        from animator_layout import COLORS
+        from animator_metrics import _y_coord
+
+        segments = self._plot((30, 150, -200, 50))
+        pos, neg = COLORS.plot_net_pos, COLORS.plot_net_neg
+        self.assertEqual([[l.get_stroke_color().to_hex().lower() for l in s] for s in segments],
+                         [[pos], [pos], [pos, neg], [neg, pos]])
+        # The split is on the zero line
+        self.assertAlmostEqual(segments[2][0].get_end()[1], _y_coord(0.0))
+
+    def test_a_move_on_the_first_ply_is_plotted(self):
+        self.assertEqual(len(self._plot((40,))), 1)
 
 
 class MoveDataFieldsTest(unittest.TestCase):
