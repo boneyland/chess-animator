@@ -98,5 +98,5 @@ def load_commentary(pgn_path=None, notes_path=None):
     return comments, marks
 
 # Example Usage:
-# COMMENTS = parse_comments_file("game_notes.txt")
-# COMMENTS, MARKS = load_commentary("game.pgn", "game_notes.txt")
+# COMMENTS = parse_comments_file("sample_game_notes.txt")
+# COMMENTS, MARKS = load_commentary("sample_game.pgn", "sample_game_notes.txt")
