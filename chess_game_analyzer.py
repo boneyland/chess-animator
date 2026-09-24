@@ -158,6 +158,7 @@ import chess
 import chess.pgn
 import chess.engine
 import io
+import math
 import os
 import re
 import subprocess
@@ -188,6 +189,21 @@ PIECE_VALUES = {
     chess.QUEEN: 900,
     chess.KING: 0
 }
+
+# Move classification by drop in winning chances (-1..+1, the mover's point of
+# view).  Inaccuracy / mistake / blunder use Lichess's thresholds; excellent and
+# good match Chess.com's 0.02 / 0.05 expected-points bands (half this scale).
+WIN_CHANCES_K = 0.00368208   # Lichess centipawn -> winning chances coefficient
+WIN_DROP_EXCELLENT = 0.04
+WIN_DROP_GOOD = 0.10
+WIN_DROP_INACCURACY = 0.20
+WIN_DROP_MISTAKE = 0.30
+
+
+def winning_chances(eval_cp: float) -> float:
+    """White's winning chances in [-1, +1] for a centipawn eval (Lichess's curve)."""
+    return 2.0 / (1.0 + math.exp(-WIN_CHANCES_K * eval_cp)) - 1.0
+
 
 # Threshold (in centipawns) for considering alternative moves as "playable"
 # Moves within this threshold of the best move will be suggested as alternatives
@@ -1182,7 +1198,11 @@ class EnhancedGameAnalyzer:
                 # can be 8000+ cp which distorts accuracy calculations.
                 eval_loss = min(raw_eval_loss, MAX_EVAL_LOSS_FOR_ACCURACY)
                 
-                classification = self._classify_move(eval_loss, ply)
+                # Drop in the mover's winning chances, as Lichess measures mistakes
+                win_drop = winning_chances(best_eval) - winning_chances(current_eval)
+                if not is_white_move:
+                    win_drop = -win_drop
+                classification = self._classify_move(eval_loss, ply, max(0.0, win_drop))
                 
                 # D. Fix AssertionError: Safely generate PV SAN line using a temp board
                 temp_board = board.copy()
@@ -1399,19 +1419,23 @@ class EnhancedGameAnalyzer:
             material += (white_count - black_count) * PIECE_VALUES[piece_type]
         return material
 
-    def _classify_move(self, eval_loss: float, ply: int) -> str:
-        """Classifies a move based on centipawn loss."""
+    def _classify_move(self, eval_loss: float, ply: int, win_drop: float) -> str:
+        """
+        Classifies a move.  book and best use centipawn loss; the rest use
+        win_drop, the drop in the mover's winning chances (see winning_chances),
+        so a pawn lost at +8 costs far less than a pawn lost at 0.
+        """
         if ply <= 12 and eval_loss < 30:
             return "book"
         if eval_loss < 5:
             return "best"
-        elif eval_loss < 15:
+        elif win_drop < WIN_DROP_EXCELLENT:
             return "excellent"
-        elif eval_loss < 30:
+        elif win_drop < WIN_DROP_GOOD:
             return "good"
-        elif eval_loss < 60:
+        elif win_drop < WIN_DROP_INACCURACY:
             return "inaccuracy"
-        elif eval_loss < 120:
+        elif win_drop < WIN_DROP_MISTAKE:
             return "mistake"
         else:
             return "blunder"
