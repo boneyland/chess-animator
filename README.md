@@ -13,21 +13,26 @@ Rendered games are on [this YouTube playlist](https://www.youtube.com/watch?v=hS
 Each frame is laid out like this:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Eval │                    │  Header (players, event)   │
-│  Bar  │   Chess Board      │  Move List                 │
-│       │                    │  Commentary / Analysis     │
-├─────────────────────────────────────────────────────────┤
-│ Eval win chance │  Space  │  Mobility  │  King Safety  │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ E │              │ Header (players, event, date, opening)    │
+│ v │              ├──────────────┬────────────────────────────┤
+│ a │  Chess board │ Moves        │ Commentary                 │
+│ l │              ├──────────────┴────────────────────────────┤
+│   │              │ Analysis (Stockfish)                      │
+├──────────────────────────────────────────────────────────────┤
+│  Eval win chance  │  Space  │  Mobility  │  King Safety      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 - **Eval bar:** Stockfish's evaluation, shown as a number, as `M3` for a forced mate, or as `1-0` / `0-1` at checkmate. The fill uses Lichess's win-probability curve, so a big advantage fills most of the bar but only a forced mate fills all of it.
-- **Move list:** scrolls as the game goes on. Each move is colored by quality: greens for good moves, brown for book moves, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
-- **Commentary:** your own notes if you've written any (see [Adding Your Own Commentary](#adding-your-own-commentary)), otherwise the engine's annotation.
+- **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by quality: greens for good moves, brown for book moves, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
+- **Commentary:** your own notes for the current move, from the PGN or a notes file, beside the move list.
+- **Analysis:** Stockfish's view of every move: its rating and the centipawns lost, the evaluation, the best line (up to 6 plies) whenever the move played wasn't rated best, Lichess-style advice when a forced mate appears or is missed, and how deep the search went.
 - **Metrics strip:** four plots that extend by one point per move. Eval shows White's win chance from -1 to +1. Space, Mobility and King Safety scale to the range the game actually covers, and that range is printed next to each title.
 
-Each move stays on screen for about 1.6 seconds.
+Each move stays on screen for about 1.6 seconds. A move with a comment stays longer, long enough to read it at about 15 characters a second.
+
+The end card lists the engine and search settings used, e.g. `Stockfish 19 · depth 20 · 3 lines · 1 thread`.
 
 ---
 
@@ -85,11 +90,24 @@ This runs Stockfish at depth 20, saves `sample_game_analysis.json`, then renders
 Analyzing move 23/82 (28%) · 1:12 elapsed · ~3:05 left
 ```
 
-On a slow machine, `--time-limit` stops each Stockfish search after that many seconds even if `--depth` hasn't been reached, which keeps deep analysis to a predictable time:
+When it finishes, it reports how deep the searches actually got:
+
+```
+Depth reached (asked for 20): 20 before each move (3 lines); 20 after it (1 line). 1 thread, 256 MB hash.
+```
+
+On a slow machine, `--time-limit` stops each Stockfish search after that many seconds even if `--depth` hasn't been reached, which keeps deep analysis to a predictable time. The depth is then a maximum: with `--depth 30 --time-limit 0.2`, a 4-core laptop reached only depth 13–18. The summary above and the per-move depth in the Analysis panel show what you actually got.
 
 ```bash
 python run_animator.py sample_game --analyze --depth 24 --time-limit 2
 ```
+
+#### Threads and memory
+
+Stockfish gets a 256 MB hash table (its own default is 16 MB); change it with `--hash MB`. The number of CPU threads depends on the kind of search, and `--threads N` overrides it:
+
+- **Depth only (no `--time-limit`): 1 thread.** At a fixed depth, extra threads widen the search instead of reaching the depth sooner. On a 4-core Ryzen laptop, one depth-20 position took 1.7 s with 1 thread and 53 s with 7. One thread also gives the same result on every run.
+- **With `--time-limit`: all cores but one.** Here the time is fixed, and 7 threads searched about 3.7 times as many positions as 1 in the same time, which gives a stronger answer.
 
 ### 2. Re-render without re-analyzing
 
@@ -174,7 +192,9 @@ A 13-year-old's masterpiece.
 
 If the notes file and the PGN both have a comment for the same move, the notes file wins.
 
-Comments are word-wrapped to fit the commentary panel, which shows 5 lines of about 30 characters. A comment that wraps to more lines is cut off, and the render prints a warning naming the move. Moves without a comment fall back to engine annotations: move classification, centipawn loss, current evaluation (or "White mates in 3" / "Checkmate - White wins"), and the best move after a mistake or blunder. Moves that create, lose, or delay a forced mate get Lichess-style mate advice instead, with the mating line the mover had, e.g. `Lost forced checkmate sequence. Mate in 2: Kg6 Kg8 Qb8#`.
+Comments appear in the Commentary column beside the move list, word-wrapped to fit its 7 lines of about 44 characters. A comment that wraps to more lines is cut off, and the render prints a warning naming the move. The video holds a commented move long enough to read it.
+
+Stockfish's analysis has its own panel, so it is shown for every move whether or not you've commented on it. Moves that create, lose, or delay a forced mate get Lichess-style mate advice there, with the mating line the mover had, e.g. `Lost forced checkmate sequence. Mate in 2: Kg6 Kg8 Qb8#`.
 
 ---
 
@@ -212,6 +232,19 @@ Forced mates follow Lichess's rules, which override the table above:
 - **Not the best checkmate sequence** (still mates, but more slowly): excellent.
 
 The thresholds are constants near the top of `chess_game_analyzer.py` (`WIN_DROP_*`, `MATE_*`).
+
+### Best lines and search depth
+
+Before each move, Stockfish searches the position for its 3 best lines (MultiPV 3). The best line becomes the "best line" shown in the Analysis panel, and the other two are kept as playable alternatives. After the move, one line is searched for the evaluation. For every move, the analysis file records:
+
+| Field | Meaning |
+|---|---|
+| `best_line` | Stockfish's best line from the position before the move, in SAN (up to 12 plies) |
+| `search_depth` | Depth reached by the search before the move |
+| `search_lines` | Lines that search returned (3, or fewer when fewer moves are legal) |
+| `search_depth_after` | Depth reached by the search after the move |
+
+The file's `engine` section records the engine name, requested depth, time limit, lines, threads and hash size.
 
 ### LaTeX reports
 
@@ -295,7 +328,8 @@ AnimatedGame.construct()
     ├── builds board, eval bar, header, move list, commentary, metrics strip
     └── for each move:
             move the piece
-            update eval bar, move list and commentary together
+            update eval bar, move list, commentary and analysis together
+            hold longer if the move has a comment
             reveal next metrics segment
 ```
 
