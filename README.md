@@ -2,6 +2,8 @@
 
 A Python pipeline that turns a PGN chess game into an annotated video using [Manim](https://www.manim.community/). Each move is animated on a live board alongside a Stockfish evaluation bar, a scrolling move list, a commentary panel, and a four-plot metrics strip showing positional trends across the whole game.
 
+![Screenshot of a video produced with chess-animator](preview.png)
+
 ---
 
 ## Example Output
