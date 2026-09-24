@@ -153,7 +153,7 @@ class ScaledEvaluationBar(manim_chess.EvaluationBar):
                 Transform(self.bot_text, new_text)]
 
 # Import the comment parser
-from convert_script_to_comment_dict import parse_comments_file
+from convert_script_to_comment_dict import load_commentary
 
 # Optionally import MetricPlotPanel — graceful fallback if not yet written
 try:
@@ -477,8 +477,11 @@ class MoveListPanel:
     Blunders and mistakes get their own line for emphasis.
     """
 
-    def __init__(self, max_visible_lines: int = 8):
+    def __init__(self, max_visible_lines: int = 8,
+                 marks: Optional[Dict[int, str]] = None):
         self.max_visible_lines = max_visible_lines
+        # Move marks from the PGN ({ply: "!!"}); they replace the engine's symbol
+        self.marks = marks or {}
         self.moves: List[MoveData] = []
         self.lines: List[str] = []
         self.line_colors: List[str] = []
@@ -515,6 +518,8 @@ class MoveListPanel:
             "brilliant":  "!!",
             "great":      "!",
         }
+        if move.ply in self.marks:
+            return text + self.marks[move.ply]
         return text + symbols.get(move.classification, "")
 
     def _rebuild_lines(self):
@@ -633,6 +638,8 @@ class CommentaryPanel:
     Prioritizes human-written comments from a dictionary over engine analysis.
     """
 
+    MAX_LINES = 5   # text rows that fit under the panel title
+
     def __init__(self, custom_comments: dict = None):
         self.panel_group = VGroup()
         self.content_group = VGroup()
@@ -708,6 +715,13 @@ class CommentaryPanel:
             lines.append(current.strip())
         return lines
 
+    @classmethod
+    def overlong_comments(cls, comments: Dict[str, str]) -> List[Tuple[str, int]]:
+        """(ply key, line count) for each move comment too long for the panel."""
+        return [(key, len(cls._wrap(text)))
+                for key, text in comments.items()
+                if key.isdigit() and len(cls._wrap(text)) > cls.MAX_LINES]
+
     def update_commentary(self, move: MoveData) -> Animation:
         """Update the commentary panel and return the transition animation."""
         lines = self._generate_commentary(move)
@@ -717,7 +731,7 @@ class CommentaryPanel:
         bottom_margin = 0.15
         usable_height = (COMMENTARY_TOP_Y - COMMENTARY_BOTTOM_Y
                          - title_height - bottom_margin)
-        max_lines  = 5
+        max_lines  = self.MAX_LINES
         line_height = usable_height / max_lines
         content_top = COMMENTARY_TOP_Y - title_height
 
@@ -818,6 +832,7 @@ class AnimatedGame(Scene):
         self.comments_path = cfg.get("comments_path")
         self.stockfish_path = cfg.get("stockfish_path")
         self.custom_comments: Dict[str, str] = {}
+        self.pgn_marks: Dict[int, str] = {}
 
     def _load_analysis(self) -> AnalysisData:
         """
@@ -859,18 +874,28 @@ class AnimatedGame(Scene):
         )
 
     def _load_custom_comments(self):
-        """Load [KEY]-based text file into self.custom_comments."""
+        """
+        Load commentary into self.custom_comments and move marks into
+        self.pgn_marks, from the PGN's annotations and the [KEY]-based notes
+        file.  The notes file wins where both have an entry.
+        """
         txt_path = self.comments_path
         if not txt_path and self.pgn_path:
             candidate = Path(self.pgn_path).stem + "_notes.txt"
             if Path(candidate).exists():
                 txt_path = candidate
 
-        if txt_path and Path(txt_path).exists():
-            print(f"Loading commentary from {txt_path}")
-            self.custom_comments = parse_comments_file(txt_path)
+        self.custom_comments, self.pgn_marks = load_commentary(self.pgn_path, txt_path)
+        sources = [p for p in (self.pgn_path, txt_path) if p and Path(p).exists()]
+        if self.custom_comments or self.pgn_marks:
+            print(f"Loaded {len(self.custom_comments)} comments and "
+                  f"{len(self.pgn_marks)} move marks from {', '.join(sources)}")
         else:
-            print("No commentary file found — using engine-only mode.")
+            print("No commentary found — using engine-only mode.")
+
+        for key, n_lines in CommentaryPanel.overlong_comments(self.custom_comments):
+            print(f"Warning: comment for ply {key} wraps to {n_lines} lines; "
+                  f"only the first {CommentaryPanel.MAX_LINES} will be shown.")
 
     def _make_title_card(self, info: "GameInfo") -> VGroup:
         """
@@ -1041,7 +1066,7 @@ class AnimatedGame(Scene):
 
         # ── 4. Side panels ───────────────────────────────────────────────────
         header_panel = create_header_panel(analysis.game_info)
-        move_list    = MoveListPanel()
+        move_list    = MoveListPanel(marks=self.pgn_marks)
         commentary   = CommentaryPanel(custom_comments=self.custom_comments)
 
         # ── 5. Optional metric panel ─────────────────────────────────────────
