@@ -169,11 +169,6 @@ FTI2_WEIGHTS = (0.60, 0.10, 0.00, 0.30)   # Tactical
 FTI3_WEIGHTS = (0.70, 0.10, 0.10, 0.10)   # Strategic
 
 
-def uci_to_manim_move(uci: str) -> Tuple[str, str, str]:
-    """Split a UCI move ('e7e8q') into manim-chess's (from, to, promotion)."""
-    return uci[:2], uci[2:4], uci[4:5]
-
-
 # =============================================================================
 # FTI Computation
 # =============================================================================
@@ -771,6 +766,38 @@ def _load_animator_config() -> Dict[str, str]:
 
 
 # =============================================================================
+# Board moves
+# =============================================================================
+
+def play_move(board: manim_chess.Board, position: chess.Board, uci: str) -> None:
+    """
+    Apply one move to the manim board instantly.
+
+    Unlike manim_chess.play_game, this doesn't pause for a second afterwards,
+    so the panels describing the move can update together with it.
+    `position` tracks the game with python-chess to recognise castling,
+    en passant and promotion; it is advanced by the move.
+    """
+    move = chess.Move.from_uci(uci)
+    from_sq = chess.square_name(move.from_square)
+    to_sq = chess.square_name(move.to_square)
+
+    if position.is_en_passant(move):
+        board.remove_piece(to_sq[0] + from_sq[1])
+    elif position.is_castling(move):
+        rank = from_sq[1]
+        if position.is_kingside_castling(move):
+            board.move_piece(f"h{rank}", f"f{rank}")
+        else:
+            board.move_piece(f"a{rank}", f"d{rank}")
+
+    board.move_piece(from_sq, to_sq)
+    if move.promotion:
+        board.promote_piece(to_sq, chess.piece_symbol(move.promotion))
+    position.push(move)
+
+
+# =============================================================================
 # Main Animated Scene
 # =============================================================================
 
@@ -1030,13 +1057,9 @@ class AnimatedGame(Scene):
         self.add(*objects_to_add)
 
         # ── 6. Animation loop ────────────────────────────────────────────────
+        position = chess.Board()
         for idx, move in enumerate(analysis.moves):
-            uci = move.move_uci
-            manim_chess.play_game(
-                scene=self,
-                board=board,
-                moves=[uci_to_manim_move(uci)]
-            )
+            play_move(board, position, move.move_uci)
 
             panel_anims = [
                 eval_bar.set_evaluation(move.eval_after),
@@ -1047,7 +1070,8 @@ class AnimatedGame(Scene):
                 panel_anims.append(metric_panel.advance_to_move(idx))
 
             self.play(*panel_anims, run_time=0.4)
-            self.wait(0.2)
+            # Hold on the analysed position; each ply still lasts 1.6 s
+            self.wait(1.2)
 
         # ── 7. End card ──────────────────────────────────────────────────────
         self.wait(1)
@@ -1133,15 +1157,14 @@ class QuickDemo(Scene):
             MoveData(18, "Na5??", "c6a5", False,  60,  180, 140, "blunder", "Nb8", False, False, [], **_z),
         ]
 
+        position = chess.Board()
         for move in demo_moves:
-            uci = move.move_uci
-            manim_chess.play_game(scene=self, board=board,
-                                  moves=[uci_to_manim_move(uci)])
+            play_move(board, position, move.move_uci)
 
             self.play(eval_bar.set_evaluation(move.eval_after), run_time=0.3)
             self.play(move_list.add_move(move), run_time=0.3)
             self.play(commentary.update_commentary(move), run_time=0.3)
-            self.wait(0.3)
+            self.wait(1.3)
 
         self.wait(2)
 
