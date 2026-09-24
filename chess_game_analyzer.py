@@ -163,7 +163,7 @@ import re
 import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Tuple, Union
+from typing import Callable, Optional, List, Dict, Tuple, Union
 from pathlib import Path
 
 # Import plotting utilities
@@ -1072,7 +1072,9 @@ class EnhancedGameAnalyzer:
 
     def analyze_game(self, pgn_source: Union[str, io.StringIO], 
                      min_diagram_spacing: int = 6,
-                     top_n_swings: int = 2) -> EnhancedGameAnalysisResult:
+                     top_n_swings: int = 2,
+                     progress: Optional[Callable[[int, int], None]] = None
+                     ) -> EnhancedGameAnalysisResult:
         """
         Complete analysis loop with manual metrics and state desync fixes.
         
@@ -1080,6 +1082,8 @@ class EnhancedGameAnalyzer:
             pgn_source: PGN file path, PGN string, or StringIO object
             min_diagram_spacing: Minimum ply distance between critical position diagrams
             top_n_swings: Number of "biggest swing" positions to always include (default: 2)
+            progress: Optional callback, called as progress(moves_done, total_moves)
+                      before the first move and after each move is analyzed
         """
         # --- 1. Fix NameError: Initialize PGN Source ---
         if isinstance(pgn_source, str):
@@ -1107,6 +1111,10 @@ class EnhancedGameAnalyzer:
             prev_material = self._calculate_material(board)
             last_diagram_ply = -100
             
+            total_moves = sum(1 for _ in game.mainline_moves())
+            if progress:
+                progress(0, total_moves)
+
             # Initial evaluation
             info_init = self.engine.analyse(board, chess.engine.Limit(depth=self.depth))
             prev_eval = self._eval_to_cp(info_init['score'])
@@ -1252,6 +1260,9 @@ class EnhancedGameAnalyzer:
                 
                 prev_eval = current_eval
                 prev_material = current_material
+
+                if progress:
+                    progress(len(moves_analysis), total_moves)
 
             # --- 3. Add Top-N Biggest Swings ---
             # Get plies already in critical_positions

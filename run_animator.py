@@ -45,6 +45,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -64,6 +65,22 @@ QUALITY_FLAGS = {
 # Analysis helper
 # ---------------------------------------------------------------------------
 
+def _format_duration(seconds: float) -> str:
+    """m:ss, or h:mm:ss from one hour up."""
+    seconds = round(seconds)
+    h, rest = divmod(seconds, 3600)
+    m, s = divmod(rest, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def format_progress(done: int, total: int, elapsed: float) -> str:
+    """One-line analysis progress, with a time estimate while moves remain."""
+    pct = done * 100 // total if total else 100
+    line = f"Analyzing move {done}/{total} ({pct}%) · {_format_duration(elapsed)} elapsed"
+    if 0 < done < total:
+        line += f" · ~{_format_duration(elapsed / done * (total - done))} left"
+    return line
+
 def run_analysis(pgn_path: Path, output_path: Path,
                  stockfish: str, depth: int) -> bool:
     """
@@ -80,10 +97,28 @@ def run_analysis(pgn_path: Path, output_path: Path,
         print("Error: chess_game_analyzer.py not found on Python path.")
         return False
 
+    # In a terminal, redraw one line in place; when piped, print plain lines
+    interactive = sys.stdout.isatty()
+    start = time.monotonic()
+    last_len = 0
+
+    def show_progress(done: int, total: int) -> None:
+        nonlocal last_len
+        line = format_progress(done, total, time.monotonic() - start)
+        if interactive:
+            # Pad over any leftover characters from a longer previous line
+            print("\r" + line.ljust(last_len), end="\n" if done == total else "",
+                  flush=True)
+            last_len = len(line)
+        else:
+            print(line, flush=True)
+
     try:
         with EnhancedGameAnalyzer(stockfish, depth) as analyzer:
-            result = analyzer.analyze_game(str(pgn_path))
+            result = analyzer.analyze_game(str(pgn_path), progress=show_progress)
     except Exception as exc:
+        if interactive and last_len:
+            print()   # finish the progress line before the error
         print(f"Error during analysis: {exc}")
         return False
 

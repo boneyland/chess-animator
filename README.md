@@ -69,7 +69,11 @@ The repository includes `sample_game.pgn` — Caruana vs. Nepomniachtchi, Round 
 python run_animator.py sample_game --analyze --depth 20
 ```
 
-This runs Stockfish at depth 20, saves `sample_game_analysis.json`, then renders a low-quality preview video. The `--analyze` flag is only needed the first time; subsequent renders reuse the saved JSON.
+This runs Stockfish at depth 20, saves `sample_game_analysis.json`, then renders a low-quality preview video. The `--analyze` flag is only needed the first time; subsequent renders reuse the saved JSON. While the analysis runs, a progress line shows how many moves are done and an estimate of the time left:
+
+```
+Analyzing move 23/63 (36%) · 1:12 elapsed · ~2:05 left
+```
 
 ### 2. Re-render without re-analyzing
 
