@@ -24,6 +24,9 @@ Options:
     --analyze   Run Stockfish analysis first, saving {game_id}_analysis.json,
                 then animate.  Requires chess_game_analyzer.py on the path.
     --depth N   Stockfish search depth for --analyze  (default: 20)
+    --time-limit SECONDS
+                Stop each search after this long even if depth N isn't
+                reached; speeds up slow machines (default: no limit)
     --stockfish PATH  Path to Stockfish binary  (default: auto-detect)
 
 Examples:
@@ -35,6 +38,9 @@ Examples:
 
     # Analyze then animate in one step
     python run_animator.py sample_game --analyze --depth 22
+
+    # Deep analysis, but at most 2 seconds per position
+    python run_animator.py sample_game --analyze --depth 24 --time-limit 2
 
     # Render the QuickDemo scene (no game files needed)
     python run_animator.py --scene QuickDemo
@@ -83,7 +89,8 @@ def format_progress(done: int, total: int, elapsed: float) -> str:
     return line
 
 def run_analysis(pgn_path: Path, output_path: Path,
-                 stockfish: Optional[str], depth: int) -> bool:
+                 stockfish: Optional[str], depth: int,
+                 time_limit: Optional[float] = None) -> bool:
     """
     Run chess_game_analyzer on pgn_path and save JSON to output_path.
     Returns True on success.
@@ -91,7 +98,8 @@ def run_analysis(pgn_path: Path, output_path: Path,
     Deliberately does NOT import anything from animator_game so that
     manim / manim_chess are never touched during the analysis step.
     """
-    print(f"Running Stockfish analysis (depth {depth}) on {pgn_path} …")
+    cap = f", max {time_limit:g}s per position" if time_limit else ""
+    print(f"Running Stockfish analysis (depth {depth}{cap}) on {pgn_path} …")
     try:
         from chess_game_analyzer import EnhancedGameAnalyzer
     except ImportError:
@@ -115,7 +123,7 @@ def run_analysis(pgn_path: Path, output_path: Path,
             print(line, flush=True)
 
     try:
-        with EnhancedGameAnalyzer(stockfish, depth) as analyzer:
+        with EnhancedGameAnalyzer(stockfish, depth, time_limit) as analyzer:
             result = analyzer.analyze_game(str(pgn_path), progress=show_progress)
     except Exception as exc:
         if interactive and last_len:
@@ -240,6 +248,11 @@ def main():
         help="Stockfish depth for --analyze (default: 20).",
     )
     parser.add_argument(
+        "--time-limit", type=float, default=None, metavar="SECONDS",
+        help="Stop each Stockfish search after this many seconds, even if "
+             "--depth isn't reached yet (default: no limit).",
+    )
+    parser.add_argument(
         "--stockfish", default=None,
         help="Path to Stockfish binary (default: auto-detect via STOCKFISH_PATH "
              "or PATH).",
@@ -276,7 +289,8 @@ def main():
         if not pgn_path.exists():
             print(f"Error: {pgn_path} not found — cannot run analysis.")
             sys.exit(1)
-        ok = run_analysis(pgn_path, analysis_path, args.stockfish, args.depth)
+        ok = run_analysis(pgn_path, analysis_path, args.stockfish, args.depth,
+                          time_limit=args.time_limit)
         if not ok:
             sys.exit(1)
 

@@ -1109,10 +1109,11 @@ class StockfishEvalParser:
 
 class EnhancedGameAnalyzer:
     def __init__(self, stockfish_path: Optional[str] = None,
-                 depth: int = 20, time_limit: float = 1.0,
+                 depth: int = 20, time_limit: Optional[float] = None,
                  extract_positional: bool = True):
         self.stockfish_path = find_stockfish(stockfish_path)
         self.depth = depth
+        # Seconds per search, on top of depth; None = no time cap
         self.time_limit = time_limit
         self.extract_positional = extract_positional
         self.engine = None
@@ -1242,7 +1243,7 @@ class EnhancedGameAnalyzer:
                 progress(0, total_moves)
 
             # Initial evaluation
-            info_init = self.engine.analyse(board, chess.engine.Limit(depth=self.depth))
+            info_init = self.engine.analyse(board, chess.engine.Limit(depth=self.depth, time=self.time_limit))
             prev_eval = self._eval_to_cp(info_init['score'])
             
             # --- 2. Main Move Loop ---
@@ -1253,7 +1254,7 @@ class EnhancedGameAnalyzer:
                 # A. Analyze BEFORE push to get Best Move and alternatives (multipv=3)
                 info_before_list = self.engine.analyse(
                     board, 
-                    chess.engine.Limit(depth=self.depth),
+                    chess.engine.Limit(depth=self.depth, time=self.time_limit),
                     multipv=3
                 )
                 # Handle both single dict (multipv=1) and list (multipv>1) returns
@@ -1285,7 +1286,7 @@ class EnhancedGameAnalyzer:
                 board.push(move)
                 
                 # C. Analyze AFTER push
-                info_after = self.engine.analyse(board, chess.engine.Limit(depth=self.depth))
+                info_after = self.engine.analyse(board, chess.engine.Limit(depth=self.depth, time=self.time_limit))
                 current_eval = self._eval_to_cp(info_after['score'])
                 current_material = self._calculate_material(board)
                 
@@ -4569,7 +4570,7 @@ def analyze_game_with_positional_metrics(
     output_path: Optional[str] = None,
     stockfish_path: Optional[str] = None,
     depth: int = 20,
-    time_limit: float = 1.0,
+    time_limit: Optional[float] = None,
     include_diagrams: bool = True,
     include_methodology: bool = True,
     include_plots: bool = True,
@@ -4586,7 +4587,7 @@ def analyze_game_with_positional_metrics(
         output_path: Optional path to save LaTeX file (if None, returns result object)
         stockfish_path: Path to Stockfish executable
         depth: Analysis depth (default 20)
-        time_limit: Time per position in seconds (default 1.0)
+        time_limit: Max seconds per position, on top of depth (default None: no cap)
         include_diagrams: Include chess board diagrams in report
         include_methodology: Include explanation of how metrics are computed
         include_plots: Include matplotlib plots (requires matplotlib)
@@ -4632,7 +4633,8 @@ def analyze_game_with_positional_metrics(
 
     """
     if verbose:
-        print(f"Starting enhanced analysis (depth={depth}, time={time_limit}s per position)...")
+        cap = f", max {time_limit}s per position" if time_limit else ""
+        print(f"Starting enhanced analysis (depth={depth}{cap})...")
         if include_plots:
             if PLOTTING_AVAILABLE and is_matplotlib_available():
                 print("Matplotlib plots: ENABLED")
@@ -4690,7 +4692,7 @@ def analyze_games_to_book(
     author: str = None,
     stockfish_path: Optional[str] = None,
     depth: int = 20,
-    time_limit: float = 1.0,
+    time_limit: Optional[float] = None,
     include_diagrams: bool = True,
     include_methodology: bool = True,
     include_plots: bool = True,
@@ -4709,7 +4711,7 @@ def analyze_games_to_book(
         author: Author name (defaults to engine version)
         stockfish_path: Path to Stockfish executable
         depth: Analysis depth (default 20)
-        time_limit: Time per position in seconds (default 1.0)
+        time_limit: Max seconds per position, on top of depth (default None: no cap)
         include_diagrams: Include chess board diagrams in report
         include_methodology: Include methodology explanation as appendix
         include_plots: Include matplotlib plots (requires matplotlib)
@@ -4731,7 +4733,8 @@ def analyze_games_to_book(
         >>> print(f"Analyzed {len(results)} games")
     """
     if verbose:
-        print(f"Starting multi-game book analysis (depth={depth}, time={time_limit}s per position)...")
+        cap = f", max {time_limit}s per position" if time_limit else ""
+        print(f"Starting multi-game book analysis (depth={depth}{cap})...")
         if include_plots:
             if PLOTTING_AVAILABLE and is_matplotlib_available():
                 print("Matplotlib plots: ENABLED")
@@ -5961,8 +5964,8 @@ Examples:
                             "via STOCKFISH_PATH or PATH)")
     parser.add_argument("-d", "--depth", type=int, default=20,
                        help="Analysis depth (default: 20)")
-    parser.add_argument("-t", "--time", type=float, default=1.0,
-                       help="Time per position in seconds (default: 1.0)")
+    parser.add_argument("-t", "--time", type=float, default=None,
+                       help="Max seconds per position, on top of --depth (default: no cap)")
     parser.add_argument("--no-diagrams", action="store_true",
                        help="Don't include position diagrams")
     parser.add_argument("--no-methodology", action="store_true",

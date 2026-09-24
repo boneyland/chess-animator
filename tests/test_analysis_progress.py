@@ -49,5 +49,48 @@ class AnalyzeGameProgressTest(unittest.TestCase):
         self.assertEqual(calls, [(0, 3), (1, 3), (2, 3), (3, 3)])
 
 
+@unittest.skipUnless(STOCKFISH, "Stockfish not found on PATH")
+class TimeLimitTest(unittest.TestCase):
+
+    def search_limits(self, **kwargs):
+        """The chess.engine.Limit of every Stockfish search for a short game."""
+        from chess_game_analyzer import EnhancedGameAnalyzer
+
+        limits = []
+        with EnhancedGameAnalyzer(STOCKFISH, depth=1, **kwargs) as analyzer:
+            real_analyse = analyzer.engine.analyse
+
+            def spy(board, limit, *args, **kw):
+                limits.append(limit)
+                return real_analyse(board, limit, *args, **kw)
+
+            analyzer.engine.analyse = spy
+            analyzer.analyze_game('[Result "*"]\n\n1. e4 e5 *\n')
+        return limits
+
+    def test_searches_have_no_time_cap_by_default(self):
+        self.assertTrue(all(l.depth == 1 and l.time is None for l in self.search_limits()))
+
+    def test_time_limit_caps_every_search(self):
+        limits = self.search_limits(time_limit=0.5)
+        self.assertTrue(limits)
+        self.assertTrue(all(l.depth == 1 and l.time == 0.5 for l in limits))
+
+
+class TimeLimitFlagTest(unittest.TestCase):
+
+    def test_time_limit_flag_is_passed_to_the_analysis(self):
+        from unittest import mock
+        import run_animator
+
+        argv = ["run_animator.py", "sample_game", "--analyze", "--time-limit", "2.5"]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(run_animator, "run_analysis", return_value=False) as run, \
+             mock.patch("builtins.print"):
+            with self.assertRaises(SystemExit):
+                run_animator.main()
+        self.assertEqual(run.call_args.kwargs.get("time_limit"), 2.5)
+
+
 if __name__ == "__main__":
     unittest.main()
