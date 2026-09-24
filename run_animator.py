@@ -27,6 +27,9 @@ Options:
     --time-limit SECONDS
                 Stop each search after this long even if depth N isn't
                 reached; speeds up slow machines (default: no limit)
+    --threads N CPU threads for Stockfish  (default: 1, or all cores but
+                one with --time-limit, where extra threads help)
+    --hash MB   Stockfish hash table size  (default: 256)
     --stockfish PATH  Path to Stockfish binary  (default: auto-detect)
 
 Examples:
@@ -88,9 +91,29 @@ def format_progress(done: int, total: int, elapsed: float) -> str:
         line += f" · ~{_format_duration(elapsed / done * (total - done))} left"
     return line
 
+def format_search_summary(moves: list, engine: dict) -> str:
+    """How deep the searches actually got, and the engine settings used."""
+    def spread(depths):
+        depths = [d for d in depths if d]   # 0 = nothing to search (e.g. mate)
+        if not depths:
+            return "none"
+        if min(depths) == max(depths):
+            return str(depths[0])
+        return f"{min(depths)}–{max(depths)}, average {round(sum(depths) / len(depths))},"
+
+    before = spread(m["search_depth"] for m in moves)
+    after = spread(m["search_depth_after"] for m in moves)
+    threads = engine["threads"]
+    return (f"Depth reached (asked for {engine['depth']}): {before} before each "
+            f"move ({engine['lines']} lines); {after} after it (1 line). "
+            f"{threads} thread{'s' if threads != 1 else ''}, {engine['hash_mb']} MB hash.")
+
+
 def run_analysis(pgn_path: Path, output_path: Path,
                  stockfish: Optional[str], depth: int,
-                 time_limit: Optional[float] = None) -> bool:
+                 time_limit: Optional[float] = None,
+                 threads: Optional[int] = None,
+                 hash_mb: Optional[int] = None) -> bool:
     """
     Run chess_game_analyzer on pgn_path and save JSON to output_path.
     Returns True on success.
@@ -101,7 +124,7 @@ def run_analysis(pgn_path: Path, output_path: Path,
     cap = f", max {time_limit:g}s per position" if time_limit else ""
     print(f"Running Stockfish analysis (depth {depth}{cap}) on {pgn_path} …")
     try:
-        from chess_game_analyzer import EnhancedGameAnalyzer
+        from chess_game_analyzer import ANALYSIS_LINES, EnhancedGameAnalyzer
     except ImportError:
         print("Error: chess_game_analyzer.py not found on Python path.")
         return False
@@ -123,7 +146,8 @@ def run_analysis(pgn_path: Path, output_path: Path,
             print(line, flush=True)
 
     try:
-        with EnhancedGameAnalyzer(stockfish, depth, time_limit) as analyzer:
+        with EnhancedGameAnalyzer(stockfish, depth, time_limit,
+                                  threads=threads, hash_mb=hash_mb) as analyzer:
             result = analyzer.analyze_game(str(pgn_path), progress=show_progress)
     except Exception as exc:
         if interactive and last_len:
@@ -173,6 +197,10 @@ def run_analysis(pgn_path: Path, output_path: Path,
                 "pv_line":          m.pv_line or [],
                 "mate_advice":      m.mate_advice,
                 "mate_line":        m.mate_line,
+                "best_line":        m.best_line,
+                "search_depth":     m.search_depth,
+                "search_depth_after": m.search_depth_after,
+                "search_lines":     m.search_lines,
                 "space_white":      sw,
                 "space_black":      sb,
                 "mobility_white":   mw,
@@ -201,9 +229,18 @@ def run_analysis(pgn_path: Path, output_path: Path,
             "moves":        moves_out,
             "white_stats":  {"accuracy": result.white_stats.get("accuracy", 0.0)},
             "black_stats":  {"accuracy": result.black_stats.get("accuracy", 0.0)},
+            "engine": {
+                "name":       analyzer.engine_version,
+                "depth":      depth,
+                "time_limit": time_limit,
+                "lines":      ANALYSIS_LINES,
+                "threads":    analyzer.threads,
+                "hash_mb":    analyzer.hash_mb,
+            },
         }
 
         output_path.write_text(json.dumps(data, indent=2))
+        print(format_search_summary(moves_out, data["engine"]))
         print(f"Analysis saved to {output_path}")
         return True
 
@@ -253,6 +290,15 @@ def main():
              "--depth isn't reached yet (default: no limit).",
     )
     parser.add_argument(
+        "--threads", type=int, default=None, metavar="N",
+        help="CPU threads for Stockfish (default: 1, or all cores but one "
+             "with --time-limit).",
+    )
+    parser.add_argument(
+        "--hash", type=int, default=None, metavar="MB", dest="hash_mb",
+        help="Stockfish hash table size in MB (default: 256).",
+    )
+    parser.add_argument(
         "--stockfish", default=None,
         help="Path to Stockfish binary (default: auto-detect via STOCKFISH_PATH "
              "or PATH).",
@@ -290,7 +336,8 @@ def main():
             print(f"Error: {pgn_path} not found — cannot run analysis.")
             sys.exit(1)
         ok = run_analysis(pgn_path, analysis_path, args.stockfish, args.depth,
-                          time_limit=args.time_limit)
+                          time_limit=args.time_limit, threads=args.threads,
+                          hash_mb=args.hash_mb)
         if not ok:
             sys.exit(1)
 

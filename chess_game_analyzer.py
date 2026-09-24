@@ -259,6 +259,34 @@ def winning_chances(eval_cp: float) -> float:
 # Moves within this threshold of the best move will be suggested as alternatives
 PLAYABLE_THRESHOLD = 50
 
+# Stockfish lines (MultiPV) searched before each move: the best move, plus
+# alternatives to suggest.  Each extra line shares the search time, so the
+# depth reached before a move is lower than after it.
+ANALYSIS_LINES = 3
+
+# Stockfish transposition-table size in MB (Stockfish's own default is 16)
+DEFAULT_HASH_MB = 256
+
+# Longest best line (in plies) stored per move
+BEST_LINE_MAX_PLIES = 12
+
+
+def default_threads() -> int:
+    """All CPU cores but one, so the machine stays usable; at least one."""
+    return max(1, (os.cpu_count() or 1) - 1)
+
+
+def default_search_threads(time_limit: Optional[float]) -> int:
+    """
+    Stockfish threads for a search.  At a fixed depth, extra threads widen the
+    search rather than reaching the depth sooner (on a 4-core laptop, depth 20
+    took up to 30x longer with 7 threads than with 1), so a depth-only search
+    uses one thread, which is also reproducible.  With a time limit, more
+    threads search more positions in the same time, so it uses
+    default_threads().
+    """
+    return 1 if time_limit is None else default_threads()
+
 # Maximum eval_loss to count towards accuracy calculations (in centipawns)
 # This prevents mate score transitions from producing absurd values (8000+ cp)
 # that would completely distort accuracy statistics. A cap of 1500cp (15 pawns)
@@ -659,6 +687,18 @@ class EnhancedMoveAnalysis:
     # e.g. "Mate in 2: Kg6 Kg8 Qb8#".
     mate_advice: str = ""
     mate_line: str = ""
+
+    # What the searches actually reached: depth of the search before the move
+    # (ANALYSIS_LINES lines) and after it (one line), and how many lines the
+    # search before the move returned.  With a time limit, depth can fall
+    # short of the requested depth.
+    search_depth: int = 0
+    search_depth_after: int = 0
+    search_lines: int = 0
+
+    # Stockfish's best line from the position before the move, in SAN,
+    # starting with the best move
+    best_line: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -1110,9 +1150,13 @@ class StockfishEvalParser:
 class EnhancedGameAnalyzer:
     def __init__(self, stockfish_path: Optional[str] = None,
                  depth: int = 20, time_limit: Optional[float] = None,
-                 extract_positional: bool = True):
+                 extract_positional: bool = True,
+                 threads: Optional[int] = None,
+                 hash_mb: Optional[int] = None):
         self.stockfish_path = find_stockfish(stockfish_path)
         self.depth = depth
+        self.threads = threads or default_search_threads(time_limit)
+        self.hash_mb = hash_mb or DEFAULT_HASH_MB
         # Seconds per search, on top of depth; None = no time cap
         self.time_limit = time_limit
         self.extract_positional = extract_positional
@@ -1123,6 +1167,7 @@ class EnhancedGameAnalyzer:
         """Protocol to support 'with' statement."""
         self.engine = chess.engine.SimpleEngine.popen_uci(self.stockfish_path)
         self.engine_version = self.engine.id.get('name', 'Stockfish')
+        self.engine.configure({"Threads": self.threads, "Hash": self.hash_mb})
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -1255,7 +1300,7 @@ class EnhancedGameAnalyzer:
                 info_before_list = self.engine.analyse(
                     board, 
                     chess.engine.Limit(depth=self.depth, time=self.time_limit),
-                    multipv=3
+                    multipv=ANALYSIS_LINES
                 )
                 # Handle both single dict (multipv=1) and list (multipv>1) returns
                 if isinstance(info_before_list, dict):
@@ -1267,6 +1312,13 @@ class EnhancedGameAnalyzer:
                 # Capture SAN strings while it's still the moving player's turn
                 played_san = board.san(node.move)
                 best_san = board.san(best_move) if best_move else "-"
+                best_line = []
+                line_board = board.copy()
+                for pv_move in info_before.get('pv', [])[:BEST_LINE_MAX_PLIES]:
+                    if pv_move not in line_board.legal_moves:
+                        break
+                    best_line.append(line_board.san(pv_move))
+                    line_board.push(pv_move)
                 is_capture = board.is_capture(node.move)
                 best_eval = self._eval_to_cp(info_before['score'])
                 
@@ -1376,7 +1428,11 @@ class EnhancedGameAnalyzer:
                     material_balance=current_material, fen_after=board.fen(),
                     pv_line=pv_san, positional_eval=pos_eval,
                     alternative_moves=alternative_moves,
-                    mate_advice=mate_adv, mate_line=mate_line
+                    mate_advice=mate_adv, mate_line=mate_line,
+                    search_depth=info_before.get('depth', 0),
+                    search_depth_after=info_after.get('depth', 0),
+                    search_lines=len(info_before_list),
+                    best_line=best_line
                 )
                 moves_analysis.append(move_analysis)
                 
