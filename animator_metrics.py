@@ -37,6 +37,7 @@ Public API (used by animator_game.py)
 
 from __future__ import annotations
 
+import math
 from typing import List, Tuple
 
 from manim import *
@@ -74,8 +75,10 @@ _PLOT_DRAW_TOP    = METRICS_TOP_Y    - _PLOT_TOP_MARGIN
 _PLOT_DRAW_BOTTOM = METRICS_BOTTOM_Y + _PLOT_BOTTOM_MARGIN
 _PLOT_DRAW_WIDTH  = METRICS_SUBPLOT_WIDTH - 2 * _PLOT_H_MARGIN
 
-# Fixed y-axis range for Eval only (well-defined ± pawns scale)
-_EVAL_RANGE = 5.0    # ± pawns
+# Eval is plotted as White's win-probability advantage in [-1, +1] using the
+# Lichess centipawn → win-chance curve, so large evals and forced mates bend
+# towards the edge instead of being clipped flat at a fixed pawn limit.
+_EVAL_WIN_K = 0.00368208   # Lichess logistic coefficient (per centipawn)
 
 # Padding fraction added above/below the data range for Space, Mobility, FTI
 # e.g. 0.15 means 15% of the data range is added as breathing room each side
@@ -122,6 +125,15 @@ def _y_coord(value: float, y_min: float, y_max: float) -> float:
     return _PLOT_DRAW_BOTTOM + frac * _PLOT_HEIGHT
 
 
+def _win_advantage(eval_cp: float) -> float:
+    """
+    Map a centipawn eval (White's POV) to White's win-probability advantage
+    in [-1, +1]:  0 cp → 0,  ±100 cp → ±0.18,  ±300 cp → ±0.50,
+    ±500 cp → ±0.73,  ±1000 cp → ±0.95,  forced mate → ±1.
+    """
+    return 2.0 / (1.0 + math.exp(-_EVAL_WIN_K * eval_cp)) - 1.0
+
+
 def _zero_y(y_min: float, y_max: float) -> float:
     """Y-coordinate of the zero line (clamped to drawing area)."""
     return _y_coord(0.0, y_min, y_max)
@@ -144,7 +156,8 @@ class _SubPlot:
                  label: str,
                  y_min: float,
                  y_max: float,
-                 series_specs: List[Tuple[str, str]]):
+                 series_specs: List[Tuple[str, str]],
+                 range_label: str | None = None):
         """
         Args:
             subplot_index: 0–3 (left to right)
@@ -153,11 +166,14 @@ class _SubPlot:
             series_specs:  List of (series_name, hex_color) pairs.
                            Series are drawn in order; names are used
                            only for external reference.
+            range_label:   Text shown next to the label; defaults to
+                           "[y_min, y_max]".
         """
         self.index       = subplot_index
         self.label       = label
         self.y_min       = y_min
         self.y_max       = y_max
+        self.range_label = range_label
         self.series_names = [s[0] for s in series_specs]
         self.series_colors = [s[1] for s in series_specs]
         self.n_series    = len(series_specs)
@@ -224,7 +240,7 @@ class _SubPlot:
             color=COLORS.text_secondary,
         )
         range_text = Text(
-            f"[{self.y_min:.2g}, {self.y_max:.2g}]",
+            self.range_label or f"[{self.y_min:.2g}, {self.y_max:.2g}]",
             font=FONTS.body_font,
             font_size=FONTS.metric_label_size - 2,
             color=COLORS.text_secondary,
@@ -390,13 +406,14 @@ class MetricPlotPanel:
         self._ks_b     = self._extract(lambda m: m.king_safety_black)
 
         # Build four SubPlot objects
-        # Eval: fixed ± range (well-understood pawns scale)
+        # Eval: win-probability advantage, fixed [-1, +1]
         self._eval_plot = _SubPlot(
             subplot_index=0,
             label="Eval",
-            y_min=-_EVAL_RANGE,
-            y_max=+_EVAL_RANGE,
+            y_min=-1.0,
+            y_max=+1.0,
             series_specs=[("eval", COLORS.plot_net_pos)],
+            range_label="win chance",
         )
 
         # Space: auto-scale across both White and Black series combined
@@ -463,11 +480,8 @@ class MetricPlotPanel:
         return [getter(m) for m in self.all_moves]
 
     def _extract_eval(self) -> List[float]:
-        """Eval in pawns, clamped to ±EVAL_RANGE."""
-        return [
-            max(-_EVAL_RANGE, min(_EVAL_RANGE, m.eval_after / 100.0))
-            for m in self.all_moves
-        ]
+        """Eval as White's win-probability advantage in [-1, +1]."""
+        return [_win_advantage(m.eval_after) for m in self.all_moves]
 
     # ------------------------------------------------------------------
     # Initialise first data point (move index 0)
