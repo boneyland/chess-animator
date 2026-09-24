@@ -54,7 +54,7 @@ pip install manim chess
 | `animator_initial_frame.py` | Initial frame scene and `GameInfo` dataclass. |
 | `animator_metrics.py` | Four-plot metrics strip (Eval, Space, Mobility, King Safety). |
 | `chess_game_analyzer.py` | Stockfish wrapper — produces per-move positional metrics. |
-| `convert_script_to_comment_dict.py` | Parses a `[KEY]` commentary text file into a dict. |
+| `convert_script_to_comment_dict.py` | Reads commentary from a `[KEY]` notes file and from PGN comments and move marks. |
 | `evaluation_bar.py` | `EvaluationBar` Mobject (part of manim-chess). |
 
 ---
@@ -120,6 +120,21 @@ python run_animator.py my_game --analyze --depth 20
 
 ## Adding Your Own Commentary
 
+There are two ways to add commentary, and you can use both.
+
+### In the PGN
+
+Comments in curly braces after a move are shown in the commentary panel when that move is played. A comment before the first move is shown on the title card. Move marks (`!`, `?`, `!!`, `??`, `!?`, `?!`) replace the engine's symbol for that move in the move list:
+
+```
+{Fischer, aged 13, against one of America's leading masters.}
+1. Nf3 Nf6 2. c4 g6 ... 11. Bg5? {Moving the same piece twice.} 11... Na4!!
+```
+
+Only the main line is read; side variations are ignored. Clock and eval tags from Lichess or Chess.com exports, such as `[%clk 0:03:00]`, are ignored too, so downloaded games work as-is.
+
+### In a notes file
+
 Create a plain text file named `sample_game_notes.txt` (or `{game_id}_notes.txt` for your own game) in the same directory. Each entry is a ply number in square brackets — where ply 1 = White's first move, ply 2 = Black's first move, and so on — followed by your comment:
 
 ```
@@ -132,7 +147,9 @@ Create a plain text file named `sample_game_notes.txt` (or `{game_id}_notes.txt`
 [47] Repetition begins. White has a slight edge but Black holds the balance.
 ```
 
-Comments are word-wrapped automatically to fit the commentary panel. If no notes file is present, the panel falls back to engine annotations (move classification, centipawn loss, current evaluation).
+If the notes file and the PGN both have a comment for the same move, the notes file wins.
+
+Comments are word-wrapped to fit the commentary panel, which shows 5 lines of about 30 characters. A comment that wraps to more lines is cut off, and the render prints a warning naming the move. Moves without a comment fall back to engine annotations (move classification, centipawn loss, current evaluation).
 
 ---
 
@@ -165,6 +182,12 @@ The metrics strip can also be tested independently with synthetic sine-wave data
 
 ```bash
 manim -pql animator_metrics.py MetricsDebug
+```
+
+Unit tests for reading commentary use the standard library's `unittest`:
+
+```bash
+python -m unittest discover tests
 ```
 
 ---
