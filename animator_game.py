@@ -323,29 +323,37 @@ class AnalysisData:
     black_accuracy: float
 
     @classmethod
-    def from_json_file(cls, json_path: Path) -> "AnalysisData":
+    def from_json_file(cls, json_path: Path,
+                       pgn_path: Optional[Path] = None) -> "AnalysisData":
         """
         Load analysis from a JSON file produced by chess_game_analyzer.py.
 
         The JSON contains a 'moves' list where each element has a nested
         'positional_eval' dict — MoveData.from_dict() handles that unpacking.
+
+        If pgn_path exists, the game details (players, event, opening...)
+        are read from its headers, so editing them doesn't need a fresh
+        analysis; otherwise they come from the JSON.
         """
         with open(json_path) as f:
             data = json.load(f)
 
-        game_info = GameInfo(
-            white=data.get("white", "White"),
-            black=data.get("black", "Black"),
-            white_elo=str(data.get("white_elo", "") or ""),
-            black_elo=str(data.get("black_elo", "") or ""),
-            event=data.get("event", ""),
-            site=data.get("site", ""),
-            date=data.get("date", ""),
-            round=data.get("round_num", ""),
-            result=data.get("result", "*"),
-            opening=data.get("opening_name", ""),
-            eco=data.get("opening_eco", ""),
-        )
+        if pgn_path and Path(pgn_path).exists():
+            game_info = GameInfo.from_pgn(Path(pgn_path))
+        else:
+            game_info = GameInfo(
+                white=data.get("white", "White"),
+                black=data.get("black", "Black"),
+                white_elo=str(data.get("white_elo", "") or ""),
+                black_elo=str(data.get("black_elo", "") or ""),
+                event=data.get("event", ""),
+                site=data.get("site", ""),
+                date=data.get("date", ""),
+                round=data.get("round_num", ""),
+                result=data.get("result", "*"),
+                opening=data.get("opening_name", ""),
+                eco=data.get("opening_eco", ""),
+            )
 
         moves = [MoveData.from_dict(m) for m in data.get("moves", [])]
 
@@ -778,6 +786,12 @@ def _load_animator_config() -> Dict[str, str]:
     return {}
 
 
+def default_notes_path(pgn_path) -> Path:
+    """The notes file that goes with a PGN: games/x.pgn -> games/x_notes.txt."""
+    pgn_path = Path(pgn_path)
+    return pgn_path.with_name(pgn_path.stem + "_notes.txt")
+
+
 # =============================================================================
 # Board moves
 # =============================================================================
@@ -853,7 +867,7 @@ class AnimatedGame(Scene):
         for path in candidates:
             if path.exists():
                 print(f"Loading analysis from {path}")
-                return AnalysisData.from_json_file(path)
+                return AnalysisData.from_json_file(path, self.pgn_path)
 
         # Fall back to live analysis
         pgn_candidates = []
@@ -880,9 +894,9 @@ class AnimatedGame(Scene):
         """
         txt_path = self.comments_path
         if not txt_path and self.pgn_path:
-            candidate = Path(self.pgn_path).stem + "_notes.txt"
-            if Path(candidate).exists():
-                txt_path = candidate
+            candidate = default_notes_path(self.pgn_path)
+            if candidate.exists():
+                txt_path = str(candidate)
 
         self.custom_comments, self.pgn_marks = load_commentary(self.pgn_path, txt_path)
         sources = [p for p in (self.pgn_path, txt_path) if p and Path(p).exists()]

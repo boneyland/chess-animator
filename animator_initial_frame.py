@@ -66,7 +66,7 @@ class GameInfo:
         Returns:
             GameInfo with parsed metadata
         """
-        with open(pgn_path) as f:
+        with open(pgn_path, encoding="utf-8") as f:
             game = chess.pgn.read_game(f)
         
         if game is None:
