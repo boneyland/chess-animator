@@ -158,6 +158,7 @@ import chess
 import chess.pgn
 import chess.engine
 import io
+import math
 import os
 import re
 import shutil
@@ -239,6 +240,21 @@ PIECE_VALUES = {
     chess.KING: 0
 }
 
+# Move classification by drop in winning chances (-1..+1, the mover's point of
+# view).  Inaccuracy / mistake / blunder use Lichess's thresholds; excellent and
+# good match Chess.com's 0.02 / 0.05 expected-points bands (half this scale).
+WIN_CHANCES_K = 0.00368208   # Lichess centipawn -> winning chances coefficient
+WIN_DROP_EXCELLENT = 0.04
+WIN_DROP_GOOD = 0.10
+WIN_DROP_INACCURACY = 0.20
+WIN_DROP_MISTAKE = 0.30
+
+
+def winning_chances(eval_cp: float) -> float:
+    """White's winning chances in [-1, +1] for a centipawn eval (Lichess's curve)."""
+    return 2.0 / (1.0 + math.exp(-WIN_CHANCES_K * eval_cp)) - 1.0
+
+
 # Threshold (in centipawns) for considering alternative moves as "playable"
 # Moves within this threshold of the best move will be suggested as alternatives
 PLAYABLE_THRESHOLD = 50
@@ -248,6 +264,57 @@ PLAYABLE_THRESHOLD = 50
 # that would completely distort accuracy statistics. A cap of 1500cp (15 pawns)
 # still represents a catastrophic blunder but won't ruin the entire game's stats.
 MAX_EVAL_LOSS_FOR_ACCURACY = 1500
+
+# Mate scores are encoded by _eval_to_cp as ±(MATE_SCORE_CP - MATE_STEP_CP·N)
+# for "mate in N"; anything within MATE_BAND_CP of ±MATE_SCORE_CP is a mate.
+MATE_SCORE_CP = 10000
+MATE_STEP_CP = 10
+MATE_BAND_CP = 1000
+
+# Lichess's descriptions for moves that change a forced mate
+MATE_CREATED = "Checkmate is now unavoidable"
+MATE_LOST = "Lost forced checkmate sequence"
+MATE_DELAYED = "Not the best checkmate sequence"
+
+# Longest mating line (in plies) written into a mate annotation
+MATE_LINE_MAX_PLIES = 9
+
+
+def mate_advice(best_eval: float, current_eval: float,
+                is_white_move: bool) -> Tuple[Optional[str], str]:
+    """
+    Lichess's mate rules for one move, judged from the mover's point of view.
+
+    best_eval is the position before the move, current_eval the position after
+    it (both centipawns from White's point of view, mates encoded as above).
+
+    Returns (classification, advice).  classification replaces the
+    centipawn-based one when it is not None:
+      - MATE_CREATED (walked into a forced mate): inaccuracy if the mover was
+        already below -10 pawns, mistake below -7, otherwise blunder.
+      - MATE_LOST (had a forced mate, no longer has): inaccuracy if still
+        above +10 pawns, mistake above +7, otherwise blunder.
+      - MATE_DELAYED (still mates, but more slowly than the best move):
+        Lichess gives no judgement; we call it excellent, as Chess.com does.
+    """
+    sign = 1 if is_white_move else -1
+    before, after = sign * best_eval, sign * current_eval
+    mate_zone = MATE_SCORE_CP - MATE_BAND_CP
+    had_mate, has_mate = before >= mate_zone, after >= mate_zone
+    was_mated, is_mated = before <= -mate_zone, after <= -mate_zone
+
+    if had_mate and not has_mate:
+        judgement = ("inaccuracy" if after > 999 else
+                     "mistake" if after > 700 else "blunder")
+        return judgement, MATE_LOST
+    if is_mated and not (had_mate or was_mated):
+        judgement = ("inaccuracy" if before < -999 else
+                     "mistake" if before < -700 else "blunder")
+        return judgement, MATE_CREATED
+    # The best move turns mate-in-N into mate-in-(N-1), one MATE_STEP_CP closer
+    if had_mate and has_mate and after < before + MATE_STEP_CP:
+        return "excellent", MATE_DELAYED
+    return None, ""
 
 # Fireteam Index weight configurations: (Space, Mobility, KingSafety, Threats)
 # These can be thought of as "signatures" capturing different playing styles.
@@ -585,6 +652,13 @@ class EnhancedMoveAnalysis:
     # Alternative moves: list of (san, eval_cp) tuples for playable alternatives
     # Only includes moves within PLAYABLE_THRESHOLD of the best move
     alternative_moves: List[Tuple[str, float]] = field(default_factory=list)
+
+    # Mate annotations, empty unless the move created, lost or delayed a forced
+    # mate: Lichess's description (MATE_CREATED / MATE_LOST / MATE_DELAYED) and,
+    # like Scid's missed-mate annotation, the mate the mover had,
+    # e.g. "Mate in 2: Kg6 Kg8 Qb8#".
+    mate_advice: str = ""
+    mate_line: str = ""
 
 
 @dataclass
@@ -1217,13 +1291,22 @@ class EnhancedGameAnalyzer:
                 # For White: a good move increases eval, so loss = best_eval - current_eval
                 # For Black: a good move decreases eval, so loss = current_eval - best_eval
                 #
+                # When the mover has a forced mate, best_eval is "mate in N" measured
+                # before the move, but the best move leaves "mate in N-1".  Compare
+                # against that, or a move that keeps mate-in-N (wasting a move)
+                # would show zero loss and be classified "best".
+                best_eval_after = best_eval
+                mover_sign = 1 if is_white_move else -1
+                if mover_sign * best_eval >= MATE_SCORE_CP - MATE_BAND_CP:
+                    best_eval_after += mover_sign * MATE_STEP_CP
+
                 # We want loss >= 0 for bad moves, so:
                 if is_white_move:
                     # White wants higher eval; if current < best, that's bad
-                    raw_eval_loss = best_eval - current_eval
+                    raw_eval_loss = best_eval_after - current_eval
                 else:
                     # Black wants lower eval; if current > best, that's bad
-                    raw_eval_loss = current_eval - best_eval
+                    raw_eval_loss = current_eval - best_eval_after
                 
                 # Clamp negative values (move was better than engine's "best" - can happen 
                 # due to search instability or horizon effects)
@@ -1234,7 +1317,11 @@ class EnhancedGameAnalyzer:
                 # can be 8000+ cp which distorts accuracy calculations.
                 eval_loss = min(raw_eval_loss, MAX_EVAL_LOSS_FOR_ACCURACY)
                 
-                classification = self._classify_move(eval_loss, ply)
+                # Drop in the mover's winning chances, as Lichess measures mistakes
+                win_drop = winning_chances(best_eval) - winning_chances(current_eval)
+                if not is_white_move:
+                    win_drop = -win_drop
+                classification = self._classify_move(eval_loss, ply, max(0.0, win_drop))
                 
                 # D. Fix AssertionError: Safely generate PV SAN line using a temp board
                 temp_board = board.copy()
@@ -1245,7 +1332,28 @@ class EnhancedGameAnalyzer:
                         temp_board.push(pv_move)
                     else:
                         break
-                
+
+                # Lichess's mate rules override the centipawn judgement.  Skipped
+                # for the engine's own move (a mate flip there is search noise)
+                # and for checkmate itself.
+                mate_class, mate_adv, mate_line = None, "", ""
+                if move != best_move and not board.is_checkmate():
+                    mate_class, mate_adv = mate_advice(best_eval, current_eval, is_white_move)
+                if mate_class:
+                    classification = mate_class
+                if mate_adv in (MATE_LOST, MATE_DELAYED):
+                    # Like Scid's missed-mate annotation, give the mate the mover had
+                    mate_n = round((MATE_SCORE_CP - abs(best_eval)) / MATE_STEP_CP)
+                    line_board = board.copy()
+                    line_board.pop()
+                    line_san = []
+                    for pv_move in info_before.get('pv', [])[:min(2 * mate_n - 1, MATE_LINE_MAX_PLIES)]:
+                        line_san.append(line_board.san(pv_move))
+                        line_board.push(pv_move)
+                    mate_line = f"Mate in {mate_n}: {' '.join(line_san)}"
+                    if 2 * mate_n - 1 > MATE_LINE_MAX_PLIES:
+                        mate_line += " ..."
+
                 # E. Calculate Manual Positional Metrics
                 pos_eval = self._get_positional_eval(board)
                 
@@ -1258,7 +1366,8 @@ class EnhancedGameAnalyzer:
                     is_capture=is_capture, is_check=board.is_check(),
                     material_balance=current_material, fen_after=board.fen(),
                     pv_line=pv_san, positional_eval=pos_eval,
-                    alternative_moves=alternative_moves
+                    alternative_moves=alternative_moves,
+                    mate_advice=mate_adv, mate_line=mate_line
                 )
                 moves_analysis.append(move_analysis)
                 
@@ -1451,19 +1560,23 @@ class EnhancedGameAnalyzer:
             material += (white_count - black_count) * PIECE_VALUES[piece_type]
         return material
 
-    def _classify_move(self, eval_loss: float, ply: int) -> str:
-        """Classifies a move based on centipawn loss."""
+    def _classify_move(self, eval_loss: float, ply: int, win_drop: float) -> str:
+        """
+        Classifies a move.  book and best use centipawn loss; the rest use
+        win_drop, the drop in the mover's winning chances (see winning_chances),
+        so a pawn lost at +8 costs far less than a pawn lost at 0.
+        """
         if ply <= 12 and eval_loss < 30:
             return "book"
         if eval_loss < 5:
             return "best"
-        elif eval_loss < 15:
+        elif win_drop < WIN_DROP_EXCELLENT:
             return "excellent"
-        elif eval_loss < 30:
+        elif win_drop < WIN_DROP_GOOD:
             return "good"
-        elif eval_loss < 60:
+        elif win_drop < WIN_DROP_INACCURACY:
             return "inaccuracy"
-        elif eval_loss < 120:
+        elif win_drop < WIN_DROP_MISTAKE:
             return "mistake"
         else:
             return "blunder"
@@ -1664,6 +1777,18 @@ class EnhancedLaTeXReportGenerator:
         
         return "\n".join(lines)
     
+    @staticmethod
+    def _mate_comment(move: EnhancedMoveAnalysis) -> str:
+        """LaTeX comment for a move with mate advice, e.g.
+        "Lost forced checkmate sequence. Mate in 2: Kg6 Kg8 Qb8#"."""
+        esc = EnhancedLaTeXReportGenerator._escape_latex
+        comment = f"{esc(move.mate_advice)}."
+        if move.mate_line:
+            comment += f" {esc(move.mate_line)}"
+        elif move.best_move_san and move.move_uci != move.best_move_uci:
+            comment += f" Best was {esc(move.best_move_san)}."
+        return comment
+
     @staticmethod
     def _escape_latex(text: str) -> str:
         """Escape special LaTeX characters."""
@@ -1893,7 +2018,12 @@ class EnhancedLaTeXReportGenerator:
                 current_line += "!"
             
             # Comments for significant moves
-            if move.classification in ["blunder", "mistake"]:
+            if move.mate_advice:
+                lines.append(current_line)
+                lines.append(rf"\textit{{{EnhancedLaTeXReportGenerator._mate_comment(move)}}}")
+                lines.append("")
+                current_line = ""
+            elif move.classification in ["blunder", "mistake"]:
                 lines.append(current_line)
                 player = "White" if move.is_white_move else "Black"
                 # Don't show alternatives when the played move equals the best move
@@ -3336,7 +3466,12 @@ class EnhancedLaTeXReportGenerator:
                 current_line += "!"
             
             # Comments for significant moves
-            if move.classification in ["blunder", "mistake"]:
+            if move.mate_advice:
+                lines.append(current_line)
+                lines.append(rf"\textit{{{EnhancedLaTeXReportGenerator._mate_comment(move)}}}")
+                lines.append("")
+                current_line = ""
+            elif move.classification in ["blunder", "mistake"]:
                 lines.append(current_line)
                 player = "White" if move.is_white_move else "Black"
                 # Don't show alternatives when the played move equals the best move
