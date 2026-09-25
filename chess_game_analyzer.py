@@ -6,17 +6,16 @@ Chess Game Analyzer
 Analyzes chess games with Stockfish and reports, for every move:
 
 - the evaluation before and after it, and the centipawns lost;
-- a rating (book, best, excellent, good, inaccuracy, mistake, blunder), judged
+- a rating (best, excellent, good, inaccuracy, mistake, blunder), judged
   by the drop in the mover's winning chances using Lichess's thresholds;
 - Lichess-style advice when a move creates, loses or delays a forced mate;
 - Stockfish's best line and playable alternatives (MultiPV);
 - the depth each search actually reached.
 
 It also detects sacrifices and critical positions, and computes each player's
-accuracy.  Evaluations and ratings come from Stockfish, with two board-based
-exceptions: "book" means a near-best move in the first 12 plies, and a
-sacrifice is a move that gives up material (by piece values) without losing
-evaluation.
+accuracy.  Evaluations and ratings come from Stockfish, with one board-based
+exception: a sacrifice is a move that gives up material (by piece values)
+without losing evaluation.
 
 Used as a library by run_animator.py (for the video), or on its own to write a
 LaTeX report of a game, or a LaTeX book of every game in a PGN:
@@ -542,7 +541,7 @@ class EnhancedGameAnalyzer:
                 win_drop = winning_chances(best_eval) - winning_chances(current_eval)
                 if not is_white_move:
                     win_drop = -win_drop
-                classification = self._classify_move(eval_loss, ply, max(0.0, win_drop))
+                classification = self._classify_move(eval_loss, max(0.0, win_drop))
                 
                 # D. Fix AssertionError: Safely generate PV SAN line using a temp board
                 temp_board = board.copy()
@@ -781,14 +780,12 @@ class EnhancedGameAnalyzer:
             material += (white_count - black_count) * PIECE_VALUES[piece_type]
         return material
 
-    def _classify_move(self, eval_loss: float, ply: int, win_drop: float) -> str:
+    def _classify_move(self, eval_loss: float, win_drop: float) -> str:
         """
-        Classifies a move.  book and best use centipawn loss; the rest use
+        Classifies a move.  best uses centipawn loss; the rest use
         win_drop, the drop in the mover's winning chances (see winning_chances),
         so a pawn lost at +8 costs far less than a pawn lost at 0.
         """
-        if ply <= 12 and eval_loss < 30:
-            return "book"
         if eval_loss < 5:
             return "best"
         elif win_drop < WIN_DROP_EXCELLENT:
@@ -841,7 +838,7 @@ class EnhancedGameAnalyzer:
         avg_loss = sum(m.eval_loss for m in moves) / len(moves)
         accuracy = max(0, 100 * math.exp(-0.005 * avg_loss)) if avg_loss > 0 else 100.0
         
-        counts = {'best': 0, 'excellent': 0, 'good': 0, 'book': 0, 'inaccuracy': 0, 'mistake': 0, 'blunder': 0}
+        counts = {'best': 0, 'excellent': 0, 'good': 0, 'inaccuracy': 0, 'mistake': 0, 'blunder': 0}
         for m in moves:
             if m.classification in counts: counts[m.classification] += 1
             
@@ -851,7 +848,7 @@ class EnhancedGameAnalyzer:
             'accuracy': accuracy,
             'best_moves': counts['best'],
             'excellent_moves': counts['excellent'],
-            'good_moves': counts['good'] + counts['book'],
+            'good_moves': counts['good'],
             'inaccuracies': counts['inaccuracy'],
             'mistakes': counts['mistake'],
             'blunders': counts['blunder']

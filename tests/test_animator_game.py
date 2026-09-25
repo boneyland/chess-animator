@@ -66,10 +66,6 @@ class AnalysisPanelTest(unittest.TestCase):
         move = _move(82, "Rc2#", "best", "Ba3#", ["Ba3#"], eval_loss=0)
         self.assertEqual(AnalysisPanel.body_lines(move), [])
 
-    def test_book_move_shows_no_best_line(self):
-        move = _move(7, "Nc3", "book", "d4", ["d4", "d5"], eval_loss=12)
-        self.assertEqual(AnalysisPanel.body_lines(move), [])
-
     def test_analysis_without_a_best_line_falls_back_to_the_best_move(self):
         move = _move(21, "Bg5", "mistake", "Be2", [])
         self.assertEqual(AnalysisPanel.body_lines(move), ["Best: 11.Be2"])
@@ -189,7 +185,7 @@ class MoveDataFieldsTest(unittest.TestCase):
     def test_older_json_with_removed_metric_fields_still_loads(self):
         d = {"ply": 1, "move_san": "e4", "move_uci": "e2e4", "is_white_move": True,
              "eval_before": 0, "eval_after": 30, "eval_loss": 0,
-             "classification": "book", "best_move_san": "e4",
+             "classification": "best", "best_move_san": "e4",
              "space_white": 0.3, "mobility_black": 1.2, "fti1": 0.1,
              "positional_eval": {"space_white_mg": 3}}
         self.assertEqual(MoveData.from_dict(d).move_san, "e4")
@@ -197,7 +193,7 @@ class MoveDataFieldsTest(unittest.TestCase):
     def test_older_json_without_them_still_loads(self):
         d = {"ply": 1, "move_san": "e4", "move_uci": "e2e4", "is_white_move": True,
              "eval_before": 0, "eval_after": 30, "eval_loss": 0,
-             "classification": "book", "best_move_san": "e4"}
+             "classification": "best", "best_move_san": "e4"}
         m = MoveData.from_dict(d)
         self.assertEqual((m.best_line, m.search_depth, m.search_lines), ([], 0, 0))
 

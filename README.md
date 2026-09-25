@@ -25,7 +25,7 @@ Each frame is laid out like this:
 ```
 
 - **Eval bar:** Stockfish's evaluation, shown as a number, as `M3` for a forced mate, or as `1-0` / `0-1` at checkmate. The fill uses Lichess's win-probability curve, so a big advantage fills most of the bar but only a forced mate fills all of it.
-- **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by quality: greens for good moves, brown for book moves, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
+- **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by quality: greens for good moves, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
 - **Commentary:** your own notes for the current move, from the PGN or a notes file, beside the move list.
 - **Analysis:** Stockfish's view of every move: its rating and the centipawns lost, the evaluation, the best line (up to 6 plies) whenever the move played wasn't rated best, Lichess-style advice when a forced mate appears or is missed, and how deep the search went.
 - **Eval plot:** Stockfish's evaluation as White's win chance from -1 to +1, starting from the starting position and extending by one point per move across the full width of the frame. Green while White is better, red while Black is; a line that crosses zero changes colour where it crosses.
@@ -213,7 +213,6 @@ Moves are judged by how much they drop the mover's **winning chances** (Lichess'
 
 | Classification | Rule |
 |---|---|
-| Book | Ply ≤ 12 and < 30 cp lost |
 | Best | < 5 cp lost |
 | Excellent | Win-chance drop < 0.04 |
 | Good | Win-chance drop < 0.10 |

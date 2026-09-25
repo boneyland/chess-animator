@@ -698,7 +698,7 @@ class AnalysisPanel:
         if move.mate_line:
             lines += wrap_text(move.mate_line, width)
         elif (move.best_move_san and move.move_san != move.best_move_san
-                and move.classification not in ("best", "book")):
+                and move.classification != "best"):
             if move.best_line:
                 best = format_line(move.best_line, move.ply, cls.BEST_LINE_PLIES)
                 lines += wrap_text(f"Best line: {best}", width)
@@ -1022,7 +1022,7 @@ class AnimatedGame(Scene):
             counts[m.classification] = counts.get(m.classification, 0) + 1
 
         order = ["brilliant", "great", "best", "excellent",
-                 "good", "book", "inaccuracy", "mistake", "blunder"]
+                 "good", "inaccuracy", "mistake", "blunder"]
         stat_parts = [f"{c.capitalize()}: {counts[c]}"
                       for c in order if c in counts]
         if stat_parts:
@@ -1173,8 +1173,8 @@ class QuickDemo(Scene):
         #  classif, best_san, is_capture, is_check, pv_line)
 
         demo_moves = [
-            MoveData(1,  "e4",    "e2e4", True,   0,   30,   0, "book",    "e4",  False, False, []),
-            MoveData(2,  "e5",    "e7e5", False,  30,   25,   5, "book",    "e5",  False, False, []),
+            MoveData(1,  "e4",    "e2e4", True,   0,   30,   0, "best",    "e4",  False, False, []),
+            MoveData(2,  "e5",    "e7e5", False,  30,   25,   5, "best",    "e5",  False, False, []),
             MoveData(3,  "Nf3",   "g1f3", True,   25,   35,   0, "best",    "Nf3", False, False, []),
             MoveData(4,  "Nc6",   "b8c6", False,  35,   30,   5, "good",    "Nc6", False, False, []),
             MoveData(5,  "Bb5",   "f1b5", True,   30,   40,   0, "best",    "Bb5", False, False, []),

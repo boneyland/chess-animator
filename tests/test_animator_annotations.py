@@ -43,14 +43,14 @@ class MoveListRowsTest(unittest.TestCase):
         return [(n, w and w.move_san, b and b.move_san) for n, w, b in panel.rows()]
 
     def test_white_and_black_share_a_row_even_for_blunders(self):
-        moves = [_move(1, "e4", "book"), _move(2, "e5", "book"),
+        moves = [_move(1, "e4", "best"), _move(2, "e5", "best"),
                  _move(3, "Bg5", "blunder"), _move(4, "Na4", "brilliant"),
                  _move(5, "Qa3", "mistake")]
         self.assertEqual(self.rows(moves),
                          [(1, "e4", "e5"), (2, "Bg5", "Na4"), (3, "Qa3", None)])
 
     def test_a_game_starting_with_black_leaves_the_white_cell_empty(self):
-        self.assertEqual(self.rows([_move(2, "e5", "book"), _move(3, "Nf3", "best")]),
+        self.assertEqual(self.rows([_move(2, "e5", "best"), _move(3, "Nf3", "best")]),
                          [(1, None, "e5"), (2, "Nf3", None)])
 
 
