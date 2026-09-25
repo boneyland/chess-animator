@@ -149,10 +149,10 @@ class MetricPlotPanel:
             stroke_color=COLORS.plot_zero_line,
             stroke_width=_ZERO_WIDTH,
         )
-        label = Text("Eval", font=FONTS.body_font,
+        label = Text("Eval", font=FONTS.body_font, weight=FONTS.weight,
                      font_size=FONTS.metric_label_size,
                      color=COLORS.text_secondary)
-        range_text = Text("White's win chance", font=FONTS.body_font,
+        range_text = Text("White's win chance", font=FONTS.body_font, weight=FONTS.weight,
                           font_size=FONTS.metric_label_size - 2,
                           color=COLORS.text_secondary)
         header = VGroup(label, range_text).arrange(RIGHT, buff=0.08)

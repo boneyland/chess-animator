@@ -391,7 +391,7 @@ class MoveListPanel:
 
         title = Text(
             "Moves",
-            font=FONTS.heading_font,
+            font=FONTS.heading_font, weight=FONTS.weight,
             font_size=FONTS.subtitle_size,
             color=COLORS.text_secondary
         )
@@ -457,7 +457,7 @@ class MoveListPanel:
             t2c[f"[{black_at}:{black_at + len(black_text)}]"] = \
                 get_classification_color(black.classification)
 
-        t = Text(row, font=FONTS.mono_font, font_size=FONTS.move_size,
+        t = Text(row, font=FONTS.mono_font, weight=FONTS.weight, font_size=FONTS.move_size,
                  color=COLORS.text_primary, t2c=t2c)
         anchor = t.submobjects[0]
         anchor.set_opacity(0)
@@ -530,7 +530,7 @@ def format_line(sans: List[str], ply: int, max_plies: int = 6) -> str:
 def char_width(font_size: int) -> float:
     """Width of one character of the body font, which is monospaced."""
     sample = "M" * 20
-    return Text(sample, font=FONTS.body_font, font_size=font_size).width / len(sample)
+    return Text(sample, font=FONTS.body_font, weight=FONTS.weight, font_size=font_size).width / len(sample)
 
 
 def wrap_text(text: str, width: int) -> List[str]:
@@ -586,7 +586,7 @@ class CommentPanel:
     def __init__(self, custom_comments: dict = None):
         self.custom_comments = custom_comments or {}
         self.content_group = VGroup()
-        title = Text("Commentary", font=FONTS.heading_font,
+        title = Text("Commentary", font=FONTS.heading_font, weight=FONTS.weight,
                      font_size=FONTS.subtitle_size, color=COLORS.text_secondary)
         title.move_to([(COMMENT_LEFT_X + COMMENT_RIGHT_X) / 2,
                        MOVE_LIST_TOP_Y - 0.25, 0])
@@ -627,7 +627,7 @@ class CommentPanel:
         texts = [
             _left_text(line, COMMENT_LEFT_X,
                        content_top - (i + 0.5) * self.LINE_HEIGHT,
-                       font=FONTS.body_font, font_size=FONTS.commentary_size,
+                       font=FONTS.body_font, weight=FONTS.weight, font_size=FONTS.commentary_size,
                        color=COLORS.text_primary)
             for i, line in enumerate(self.comment_lines(move)[:self.max_lines()])
         ]
@@ -649,7 +649,7 @@ class AnalysisPanel:
     def __init__(self):
         self.content_group = VGroup()
         bg = get_panel_rect(COMMENTARY_TOP_Y, COMMENTARY_BOTTOM_Y)
-        title = Text("Analysis", font=FONTS.heading_font,
+        title = Text("Analysis", font=FONTS.heading_font, weight=FONTS.weight,
                      font_size=FONTS.subtitle_size, color=COLORS.text_secondary)
         title.move_to([PANEL_CENTER_X, COMMENTARY_TOP_Y - 0.25, 0])
         self.panel_group = VGroup(bg, title, self.content_group)
@@ -727,11 +727,11 @@ class AnalysisPanel:
             return content_top - (row + 0.5) * self.LINE_HEIGHT
 
         rating, evaluation = self.headline(move)
-        eval_text = Text(evaluation, font=FONTS.body_font,
+        eval_text = Text(evaluation, font=FONTS.body_font, weight=FONTS.weight,
                          font_size=FONTS.commentary_size, color=COLORS.text_primary)
         if rating:
             rating_text = _left_text(rating, ANALYSIS_LEFT_X, y_of(0),
-                                     font=FONTS.body_font,
+                                     font=FONTS.body_font, weight=FONTS.weight,
                                      font_size=FONTS.commentary_size,
                                      color=get_classification_color(move.classification))
             eval_text.next_to(rating_text, RIGHT, buff=0.35)
@@ -744,12 +744,12 @@ class AnalysisPanel:
         body_rows = max_lines - 1 - (1 if footer else 0)
         for i, line in enumerate(self.body_lines(move)[:body_rows]):
             items.append(_left_text(line, ANALYSIS_LEFT_X, y_of(i + 1),
-                                    font=FONTS.body_font,
+                                    font=FONTS.body_font, weight=FONTS.weight,
                                     font_size=FONTS.commentary_size,
                                     color=COLORS.text_primary))
         if footer:
             items.append(_left_text(footer, ANALYSIS_LEFT_X, y_of(max_lines - 1),
-                                    font=FONTS.body_font,
+                                    font=FONTS.body_font, weight=FONTS.weight,
                                     font_size=FONTS.commentary_size - 2,
                                     color=COLORS.text_secondary))
         return _swap_content(self.content_group, items)
@@ -928,7 +928,7 @@ class AnimatedGame(Scene):
         def _t(text, font_size, color, bold=False):
             t = Text(text, font=FONTS.heading_font,
                      font_size=font_size, color=color,
-                     weight=BOLD if bold else NORMAL)
+                     weight=BOLD if bold else FONTS.weight)
             if t.width > MAX_WIDTH:
                 t.set_width(MAX_WIDTH)
             return t
@@ -992,7 +992,7 @@ class AnimatedGame(Scene):
         def _t(text, font_size, color, bold=False):
             t = Text(text, font=FONTS.heading_font,
                      font_size=font_size, color=color,
-                     weight=BOLD if bold else NORMAL)
+                     weight=BOLD if bold else FONTS.weight)
             if t.width > MAX_WIDTH:
                 t.set_width(MAX_WIDTH)
             return t
@@ -1156,7 +1156,7 @@ class QuickDemo(Scene):
 
         title = Text(
             "Quick Demo",
-            font=FONTS.heading_font,
+            font=FONTS.heading_font, weight=FONTS.weight,
             font_size=FONTS.title_size,
             color=COLORS.text_primary
         ).move_to([PANEL_CENTER_X, HEADER_CENTER_Y, 0])

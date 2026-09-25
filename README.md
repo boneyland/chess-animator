@@ -85,7 +85,7 @@ The repository includes `sample_game.pgn`: Donald Byrne vs. Bobby Fischer, New Y
 python run_animator.py sample_game --analyze --depth 20
 ```
 
-This runs Stockfish at depth 20, saves `sample_game_analysis.json`, then renders a low-quality preview video. The `--analyze` flag is only needed the first time; subsequent renders reuse the saved JSON. While the analysis runs, a progress line shows how many moves are done and an estimate of the time left:
+This runs Stockfish at depth 20, saves `sample_game_analysis.json`, then renders a 720p video. The `--analyze` flag is only needed the first time; subsequent renders reuse the saved JSON. While the analysis runs, a progress line shows how many moves are done and an estimate of the time left:
 
 ```
 Analyzing move 23/82 (28%) · 1:12 elapsed · ~3:05 left
@@ -126,13 +126,13 @@ Manim's quality flag controls both resolution and frame rate together:
 
 | Flag | Resolution | FPS | Use case |
 |---|---|---|---|
-| `--quality low` | 854 × 480 | 15 | Fast preview during development |
-| `--quality medium` | 1280 × 720 | 30 | Draft review |
+| `--quality low` | 854 × 480 | 15 | Fast preview; small text is hard to read |
+| `--quality medium` | 1280 × 720 | 30 | Default |
 | `--quality high` | 1920 × 1080 | 60 | Final YouTube/Vimeo upload |
 | `--quality ultra` | 3840 × 2160 | 60 | 4K archival render |
 
 ```bash
-# Fast preview (default)
+# Fast preview at 480p
 python run_animator.py sample_game --quality low
 
 # 1080p final render, no auto-open

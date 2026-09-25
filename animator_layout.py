@@ -214,6 +214,7 @@ class Typography:
     heading_font: str = "Courier New"
     body_font:    str = "Courier New"
     mono_font:    str = "Courier New"
+    weight:       str = BOLD           # Courier New's regular weight is too thin on video
 
     # Sizes (Manim units; ~1 unit ≈ 36 pt at default resolution)
     title_size:       int = 20
@@ -225,12 +226,11 @@ class Typography:
     label_size:       int = 14
 
     # Header panel — compact sizes so content fits the short panel height
-    header_player_size: int = 14   # player name lines
-    header_vs_size:     int = 12   # "vs ♚ Black" line
-    header_info_size:   int = 12   # event · date and opening lines
+    header_player_size: int = 17   # player name lines
+    header_info_size:   int = 14   # event · date and opening lines
 
     # Smaller size for metric plot axis labels
-    metric_label_size: int = 10
+    metric_label_size: int = 14
 
 
 FONTS = Typography()
@@ -358,7 +358,7 @@ def create_layout_guides() -> VGroup:
         ))
 
     # ── Metrics strip label ───────────────────────────────────────────────────
-    t = Text("Eval", font=FONTS.body_font,
+    t = Text("Eval", font=FONTS.body_font, weight=FONTS.weight,
              font_size=FONTS.metric_label_size,
              color=COLORS.text_secondary)
     t.move_to([METRICS_CENTER_X, METRICS_TOP_Y - 0.15, 0])

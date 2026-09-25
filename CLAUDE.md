@@ -4,8 +4,8 @@
 - `.venv/bin/python -m unittest discover tests` - test suite (unittest, no pytest; system python has no manim)
 - `PATH=.venv/bin:$PATH python run_animator.py sample_game --no-preview` - render; run_animator calls `manim` from PATH
 - `PATH=.venv/bin:$PATH python run_animator.py sample_game --analyze` - regenerate `sample_game_analysis.json` (depth 20, 1 thread: ~4 min)
-- `.venv/bin/manim -ql -s animator_initial_frame.py LayoutDebug` - still of the frame layout; `animator_metrics.py MetricsDebug` for the eval plot
-- `ffmpeg -ss T -i media/videos/animator_game/480p15/AnimatedGame.mp4 -frames:v 1 f.png` - check a render; ply N starts at ~5.6 s + Σ(0.4 + hold), hold = max(1.2, len(comment)/15)
+- `.venv/bin/manim -qm -s animator_initial_frame.py LayoutDebug` - still of the frame layout; `animator_metrics.py MetricsDebug` for the eval plot
+- `ffmpeg -ss T -i media/videos/animator_game/720p30/AnimatedGame.mp4 -frames:v 1 f.png` - check a render; ply N starts at ~5.6 s + Σ(0.4 + hold), hold = max(1.2, len(comment)/15)
 - `python chess_game_analyzer.py game.pgn -o x.tex [--book]` - LaTeX report (no LaTeX installed here, so it can't be compiled; check structure only)
 
 ## Gotchas

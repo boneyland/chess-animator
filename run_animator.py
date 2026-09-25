@@ -17,7 +17,7 @@ Usage:
     than letting Manim fail cryptically.
 
 Options:
-    --quality   low | medium | high | ultra   (default: low)
+    --quality   low | medium | high | ultra   (default: medium, 720p)
                 Maps to Manim's -pql / -pqm / -pqh / -pqk flags.
     --scene     Manim scene class name         (default: AnimatedGame)
     --no-preview                               Don't open the video after render.
@@ -36,7 +36,7 @@ Options:
     --stockfish PATH  Path to Stockfish binary  (default: auto-detect)
 
 Examples:
-    # Fast preview render (low quality)
+    # 720p render (default quality)
     python run_animator.py sample_game
 
     # High-quality final render
@@ -213,8 +213,8 @@ def main():
         help="Base filename without extension (e.g. 'my_game').",
     )
     parser.add_argument(
-        "--quality", choices=QUALITY_FLAGS.keys(), default="low",
-        help="Render quality (default: low).",
+        "--quality", choices=QUALITY_FLAGS.keys(), default="medium",
+        help="Render quality (default: medium, 720p).",
     )
     parser.add_argument(
         "--scene", default="AnimatedGame",

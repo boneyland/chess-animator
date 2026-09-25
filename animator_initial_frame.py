@@ -160,9 +160,8 @@ def create_header_panel(game_info: GameInfo) -> VGroup:
         └─────────────────────────────────┘
 
     Tuning knobs (all in animator_layout.Typography):
-        header_player_size  — player name font size  (default 12)
-        header_vs_size      — "vs" separator size    (default 10)
-        header_info_size    — event/date/opening size (default 10)
+        header_player_size  — player name font size  (default 17)
+        header_info_size    — event/date/opening size (default 14)
     """
     # Maximum text width: panel width minus left/right padding
     MAX_TEXT_WIDTH = PANEL_WIDTH - 0.5
@@ -183,7 +182,7 @@ def create_header_panel(game_info: GameInfo) -> VGroup:
     white_display = format_player_display(game_info.white, game_info.white_elo)
     content.add(_clamp(Text(
         f"♔  {white_display}",
-        font=FONTS.heading_font,
+        font=FONTS.heading_font, weight=FONTS.weight,
         font_size=FONTS.header_player_size,
         color=COLORS.white_player,
     )))
@@ -191,9 +190,9 @@ def create_header_panel(game_info: GameInfo) -> VGroup:
     black_display = format_player_display(game_info.black, game_info.black_elo)
     content.add(_clamp(Text(
         f"vs  ♚  {black_display}",
-        font=FONTS.body_font,
-        font_size=FONTS.header_vs_size,
-        color=COLORS.text_secondary,
+        font=FONTS.heading_font, weight=FONTS.weight,
+        font_size=FONTS.header_player_size,
+        color=COLORS.black_player,
     )))
 
     # ── Event · Date on one line (saves vertical space) ──────────────────────
@@ -205,7 +204,7 @@ def create_header_panel(game_info: GameInfo) -> VGroup:
     if event_date:
         content.add(_clamp(Text(
             event_date,
-            font=FONTS.body_font,
+            font=FONTS.body_font, weight=FONTS.weight,
             font_size=FONTS.header_info_size,
             color=COLORS.text_secondary,
         )))
@@ -215,7 +214,7 @@ def create_header_panel(game_info: GameInfo) -> VGroup:
     if opening_display:
         content.add(_clamp(Text(
             opening_display,
-            font=FONTS.body_font,
+            font=FONTS.body_font, weight=FONTS.weight,
             font_size=FONTS.header_info_size,
             color=COLORS.text_accent,
         )))
@@ -251,7 +250,7 @@ def create_move_list_panel() -> VGroup:
     # Column titles and the divider between them
     for text, x in (("Moves", MOVES_COLUMN_CENTER_X),
                     ("Commentary", (COMMENT_LEFT_X + COMMENT_RIGHT_X) / 2)):
-        title = Text(text, font=FONTS.heading_font,
+        title = Text(text, font=FONTS.heading_font, weight=FONTS.weight,
                      font_size=FONTS.subtitle_size, color=COLORS.text_secondary)
         title.move_to([x, MOVE_LIST_TOP_Y - 0.25, 0])
         panel.add(title)
@@ -262,7 +261,7 @@ def create_move_list_panel() -> VGroup:
     # Placeholder for empty state
     placeholder = Text(
         "Game starting...",
-        font=FONTS.body_font,
+        font=FONTS.body_font, weight=FONTS.weight,
         font_size=FONTS.move_size,
         color=COLORS.text_secondary,
         opacity=0.5
@@ -288,7 +287,7 @@ def create_commentary_panel() -> VGroup:
     # Title
     title = Text(
         "Analysis",
-        font=FONTS.heading_font,
+        font=FONTS.heading_font, weight=FONTS.weight,
         font_size=FONTS.subtitle_size,
         color=COLORS.text_secondary
     )
@@ -298,7 +297,7 @@ def create_commentary_panel() -> VGroup:
     # Placeholder
     placeholder = Text(
         "Waiting for first move...",
-        font=FONTS.body_font,
+        font=FONTS.body_font, weight=FONTS.weight,
         font_size=FONTS.commentary_size,
         color=COLORS.text_secondary,
         opacity=0.5
