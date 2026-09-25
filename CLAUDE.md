@@ -12,7 +12,6 @@
 - Everything shown about a move comes from Stockfish; board-counting metrics (space/mobility/king safety/FTI) were deliberately removed, don't reintroduce them
 - Fixed-depth search: 1 thread is fastest (7 threads measured up to 30x slower); threads only help with `--time-limit`. Benchmark before changing engine defaults
 - Header/title/end card read from the PGN; re-run `--analyze` only when the moves change
-- `manim_chess/` is an unused modified copy; the pip package is imported (no `__init__.py`)
 - Fonts are Courier New (monospace): text capacity comes from `char_width()`; Manim `Text` drops leading spaces from its width, so move-list rows are anchored on an invisible `|`
 - `chess_plotting.py` doesn't exist; the report has no plots
 - `sample_game.pgn` is annotated Byrne–Fischer 1956; commentary comes from PGN comments/NAGs plus `{game}_notes.txt` (notes file wins)

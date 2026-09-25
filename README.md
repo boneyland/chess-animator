@@ -70,7 +70,6 @@ Manim also needs a few system libraries (such as Cairo, Pango and FFmpeg); see [
 | `sample_game.pgn` | The annotated example game used throughout this README. |
 | `tests/` | Unit tests (see [Testing Without a Game File](#testing-without-a-game-file)). |
 | `preview.png` | The screenshot at the top of this README. |
-| `manim_chess/` | A modified copy of the manim-chess library. It is **not used**: the pip-installed package is imported instead. |
 
 ---
 
