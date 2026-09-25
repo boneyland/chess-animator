@@ -111,7 +111,7 @@ def format_search_summary(moves: list, engine: dict) -> str:
     after = spread(m["search_depth_after"] for m in moves)
     threads = engine["threads"]
     return (f"Depth reached (asked for {engine['depth']}): {before} before each "
-            f"move ({engine['lines']} lines); {after} after it (1 line). "
+            f"move, {after} after it ({engine['lines']} lines). "
             f"{threads} thread{'s' if threads != 1 else ''}, {engine['hash_mb']} MB hash.")
 
 

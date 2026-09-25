@@ -123,12 +123,15 @@ def winning_chances(eval_cp: float) -> float:
 # Moves within this threshold of the best move will be suggested as alternatives
 PLAYABLE_THRESHOLD = 50
 
-# Default Stockfish lines (MultiPV) searched before each move: the best move,
+# Default Stockfish lines (MultiPV) searched in each position: the best move,
 # plus alternatives to suggest.  Each extra line costs search time: at depth
 # 20, 3 lines took about 4.5x as long as 1.  Fewer lines lose the alternatives,
 # and the first line's eval gets less accurate too: a multi-line search is also
 # a more thorough one (on 16 sample positions, eval error vs a much deeper
 # search rose from 40 to 57 cp at depth 20 with 1 line instead of 3).
+# Each position is searched once, for the move played from it and the move
+# that led to it; that was 7% faster on the sample game than an extra
+# one-line search after each move.
 ANALYSIS_LINES = 3
 
 # Stockfish transposition-table size in MB (Stockfish's own default is 16)
@@ -285,9 +288,10 @@ class EnhancedMoveAnalysis:
     mate_line: str = ""
 
     # What the searches actually reached: depth of the search before the move
-    # (ANALYSIS_LINES lines) and after it (one line), and how many lines the
-    # search before the move returned.  With a time limit, depth can fall
-    # short of the requested depth.
+    # and after it (each of ANALYSIS_LINES lines; the one after is also the
+    # next move's search before), and how many lines the search before the
+    # move returned.  With a time limit, depth can fall short of the
+    # requested depth.
     search_depth: int = 0
     search_depth_after: int = 0
     search_lines: int = 0
@@ -400,6 +404,13 @@ class EnhancedGameAnalyzer:
             return 10000 - mate_in * 10 if white_score > chess.engine.Cp(0) else -10000 + mate_in * 10
         return float(white_score.score() or 0)
 
+    def _search(self, board: chess.Board) -> List[dict]:
+        """Stockfish's best lines (up to self.lines) for board, best first."""
+        infos = self.engine.analyse(
+            board, chess.engine.Limit(depth=self.depth, time=self.time_limit),
+            multipv=self.lines)
+        # Handle both single dict (multipv=1) and list (multipv>1) returns
+        return [infos] if isinstance(infos, dict) else infos
 
     def analyze_game(self, pgn_source: Union[str, io.StringIO], 
                      min_diagram_spacing: int = 6,
@@ -446,25 +457,17 @@ class EnhancedGameAnalyzer:
             if progress:
                 progress(0, total_moves)
 
-            # Initial evaluation
-            info_init = self.engine.analyse(board, chess.engine.Limit(depth=self.depth, time=self.time_limit))
-            prev_eval = self._eval_to_cp(info_init['score'])
-            
+            # Each position is searched once: the search after a move is also
+            # the search before the next one
+            info_before_list = self._search(board)
+            prev_eval = self._eval_to_cp(info_before_list[0]['score'])
+
             # --- 2. Main Move Loop ---
             for node in game.mainline():
                 ply = board.ply() + 1
                 is_white_move = board.turn == chess.WHITE
-                
-                # A. Analyze BEFORE push to get Best Move and alternatives (self.lines lines)
-                info_before_list = self.engine.analyse(
-                    board, 
-                    chess.engine.Limit(depth=self.depth, time=self.time_limit),
-                    multipv=self.lines
-                )
-                # Handle both single dict (multipv=1) and list (multipv>1) returns
-                if isinstance(info_before_list, dict):
-                    info_before_list = [info_before_list]
-                
+
+                # A. The search BEFORE the move gives the best move and alternatives
                 info_before = info_before_list[0]  # Best line
                 best_move = info_before.get('pv', [None])[0]
                 
@@ -497,7 +500,8 @@ class EnhancedGameAnalyzer:
                 board.push(move)
                 
                 # C. Analyze AFTER push
-                info_after = self.engine.analyse(board, chess.engine.Limit(depth=self.depth, time=self.time_limit))
+                info_after_list = self._search(board)
+                info_after = info_after_list[0]
                 current_eval = self._eval_to_cp(info_after['score'])
                 current_material = self._calculate_material(board)
                 
@@ -633,6 +637,7 @@ class EnhancedGameAnalyzer:
                 
                 prev_eval = current_eval
                 prev_material = current_material
+                info_before_list = info_after_list
 
                 if progress:
                     progress(len(moves_analysis), total_moves)

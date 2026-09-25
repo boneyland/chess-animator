@@ -8,8 +8,6 @@ A Python pipeline that turns a PGN chess game into an annotated video using [Man
 
 ## Example Output
 
-Rendered games are on [this YouTube playlist](https://www.youtube.com/watch?v=hScw3EaoxNk&list=PLSwHwWPf_04RVNjMkisroM9gFSEWDFMP4).
-
 Each frame is laid out like this:
 
 ```
@@ -94,7 +92,7 @@ Analyzing move 23/82 (28%) · 1:12 elapsed · ~3:05 left
 When it finishes, it reports how deep the searches actually got:
 
 ```
-Depth reached (asked for 20): 20 before each move (3 lines); 20 after it (1 line). 1 thread, 256 MB hash.
+Depth reached (asked for 20): 20 before each move, 20 after it (3 lines). 1 thread, 256 MB hash.
 ```
 
 On a slow machine, `--time-limit` stops each Stockfish search after that many seconds even if `--depth` hasn't been reached, which keeps deep analysis to a predictable time. The depth is then a maximum: with `--depth 30 --time-limit 0.2`, a 4-core laptop reached only depth 13–18. The summary above and the per-move depth in the Analysis panel show what you actually got.
@@ -230,7 +228,7 @@ The thresholds are constants near the top of `chess_game_analyzer.py` (`WIN_DROP
 
 ### Best lines and search depth
 
-Before each move, Stockfish searches the position for its best lines: 3 by default (MultiPV 3), set with `--lines`. The first becomes the "best line" shown in the Analysis panel, and the others are kept as playable alternatives. After the move, one line is searched for the evaluation. For every move, the analysis file records:
+Stockfish searches each position once, for its best lines: 3 by default (MultiPV 3), set with `--lines`. Before a move, the first line becomes the "best line" shown in the Analysis panel, and the others are kept as playable alternatives; after the move, the next position's search gives the evaluation. For every move, the analysis file records:
 
 | Field | Meaning |
 |---|---|

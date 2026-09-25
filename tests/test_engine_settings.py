@@ -105,8 +105,8 @@ class SearchSummaryTest(unittest.TestCase):
         engine = {"depth": 30, "threads": 7, "hash_mb": 256, "lines": 3}
         self.assertEqual(
             format_search_summary(moves, engine),
-            "Depth reached (asked for 30): 14–18, average 16, before each move "
-            "(3 lines); 20–22, average 21, after it (1 line). "
+            "Depth reached (asked for 30): 14–18, average 16, before each move"
+            ", 20–22, average 21, after it (3 lines). "
             "7 threads, 256 MB hash.")
 
 
@@ -117,8 +117,8 @@ class SearchSummaryTest(unittest.TestCase):
         engine = {"depth": 20, "threads": 1, "hash_mb": 256, "lines": 3}
         self.assertEqual(
             format_search_summary(moves, engine),
-            "Depth reached (asked for 20): 20 before each move (3 lines); "
-            "20 after it (1 line). 1 thread, 256 MB hash.")
+            "Depth reached (asked for 20): 20 before each move, "
+            "20 after it (3 lines). 1 thread, 256 MB hash.")
 
 
 @unittest.skipUnless(STOCKFISH, "Stockfish not found on PATH")

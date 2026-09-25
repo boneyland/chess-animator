@@ -68,6 +68,11 @@ class TimeLimitTest(unittest.TestCase):
             analyzer.analyze_game('[Result "*"]\n\n1. e4 e5 *\n')
         return limits
 
+    def test_each_position_is_searched_once(self):
+        # The start, after 1. e4 and after 1... e5: the search after a move
+        # is reused as the search before the next
+        self.assertEqual(len(self.search_limits()), 3)
+
     def test_searches_have_no_time_cap_by_default(self):
         self.assertTrue(all(l.depth == 1 and l.time is None for l in self.search_limits()))
 
