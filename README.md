@@ -216,10 +216,10 @@ Moves are judged by how much they drop the mover's **winning chances** (Lichess'
 | Book | Ply ≤ 12 and < 30 cp lost |
 | Best | < 5 cp lost |
 | Excellent | Win-chance drop < 0.04 |
-| Good | < 0.10 |
-| Inaccuracy | < 0.20 |
-| Mistake | < 0.30 |
-| Blunder | ≥ 0.30 |
+| Good | Win-chance drop < 0.10 |
+| Inaccuracy | Win-chance drop < 0.20 |
+| Mistake | Win-chance drop < 0.30 |
+| Blunder | Win-chance drop ≥ 0.30 |
 
 Forced mates follow Lichess's rules, which override the table above:
 
