@@ -46,9 +46,11 @@ The end card lists the engine and search settings used, e.g. `Stockfish 19 · de
 | [python-chess](https://python-chess.readthedocs.io/) | Installed as `chess` |
 | [Stockfish](https://stockfishchess.org/download/) | Binary on your system |
 
-Install the Python dependencies:
+Install the Python dependencies in a virtual environment:
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
