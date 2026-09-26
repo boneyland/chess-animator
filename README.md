@@ -25,7 +25,7 @@ Each frame is laid out like this:
 - **Eval bar:** Stockfish's evaluation, shown as a number, as `M3` for a forced mate, or as `1-0` / `0-1` at checkmate. The fill uses Lichess's win-probability curve, so a big advantage fills most of the bar but only a forced mate fills all of it.
 - **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by quality: greens for good moves, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
 - **Commentary:** your own notes for the current move, from the PGN or a notes file, beside the move list.
-- **Analysis:** Stockfish's view of every move: its rating and the centipawns lost, the evaluation, the best line (up to 6 plies) whenever the move played wasn't rated best, Lichess-style advice when a forced mate appears or is missed, and how deep the search went.
+- **Analysis:** the opening while the move is still in book (see [Opening names](#opening-names)), then Stockfish's view of every move: its rating and the centipawns lost, the evaluation, the best line (up to 6 plies) whenever the move played wasn't rated best, Lichess-style advice when a forced mate appears or is missed, and how deep the search went.
 - **Eval plot:** Stockfish's evaluation as White's win chance from -1 to +1, starting from the starting position and extending by one point per move across the full width of the frame. Green while White is better, red while Black is; a line that crosses zero changes colour where it crosses.
 
 Each move stays on screen for about 1.6 seconds. A move with a comment stays longer, long enough to read it at about 15 characters a second.
@@ -66,6 +66,7 @@ Manim also needs a few system libraries (such as Cairo, Pango and FFmpeg); see [
 | `animator_initial_frame.py` | Initial frame scene and `GameInfo` dataclass. |
 | `animator_metrics.py` | The Eval plot along the bottom of the frame. |
 | `chess_game_analyzer.py` | Stockfish wrapper: per-move evals, ratings, best lines and mate advice; also writes LaTeX reports. |
+| `chess_openings.py` | Names the opening and marks book moves, from the Lichess opening data in `openings/`. |
 | `convert_script_to_comment_dict.py` | Reads commentary from a `[KEY]` notes file and from PGN comments and move marks. |
 | `sample_game.pgn` | The annotated example game used throughout this README. |
 | `tests/` | Unit tests (see [Testing Without a Game File](#testing-without-a-game-file)). |
@@ -201,7 +202,7 @@ Stockfish's analysis has its own panel, so it is shown for every move whether or
 
 ## How the Analysis Works
 
-`chess_game_analyzer.py` runs Stockfish on the position before and after each move. Everything the video shows about a move comes from those searches: the evaluation, the rating, the best line and the mate advice.
+`chess_game_analyzer.py` runs Stockfish on the position before and after each move. Everything the video shows about a move comes from those searches (the evaluation, the rating, the best line and the mate advice), except the opening name.
 
 The Eval plot shows the evaluation as White's win-probability advantage in [-1, +1], using Lichess's curve (0 cp → 0, ±300 cp → ±0.5, forced mate → ±1). That fixed scale lets large evals and forced mates bend toward the edge instead of being clipped.
 
@@ -238,6 +239,16 @@ Stockfish searches each position once, for its best lines: 3 by default (MultiPV
 | `search_depth_after` | Depth reached by the search after the move |
 
 The file's `engine` section records the engine name, requested depth, time limit, lines, threads and hash size.
+
+### Opening names
+
+The opening comes from Lichess's [chess-openings](https://github.com/lichess-org/chess-openings) data (about 3,800 named lines, public domain), copied into `openings/*.tsv`. Openings are classified by the position reached, not the move order, so a game that transposes into a line gets that line's name.
+
+- A move is **in book** when the position after it lies on one of those lines. The Analysis panel then shows `Book:` and the position's opening. The name is not a rating: Stockfish still rates every book move.
+- Most positions on a line aren't named themselves. They take the name of the last named position before them on their line, even when the game's own move order skipped that position. If a position is on several lines, the name closest to it wins (ties go to the first line in the data).
+- The header and title card show the PGN's `ECO` and `Opening` headers. When the PGN has no `Opening` header, they show the opening of the game's last position in book.
+
+In the sample game, 1.Nf3 Nf6 2.c4 g6 3.Nc3 Bg7 4.d4 O-O 5.Bf4 d5 never passes through a named Grünfeld position, but 5...d5 reaches a position on the line 1.d4 Nf6 2.c4 g6 3.Nc3 d5 4.Nf3 Bg7 5.Bf4 O-O, one ply after the Hungarian Attack. So it's shown as `Grünfeld Defense: Three Knights Variation, Hungarian Attack` (D92). The opening is worked out when the video is rendered, so updating `openings/` doesn't need `--analyze` again.
 
 ### LaTeX reports
 
@@ -312,6 +323,7 @@ run_animator.py
 
 AnimatedGame.construct()
     ├── loads analysis JSON  →  List[MoveData]
+    ├── names the opening and book moves from openings/*.tsv
     ├── reads headers, comments and move marks from the PGN,
     │   then the notes file (which wins for the same move)
     ├── builds board, eval bar, header, move list, commentary, analysis, eval plot

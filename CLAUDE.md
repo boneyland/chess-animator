@@ -9,7 +9,7 @@
 - `python chess_game_analyzer.py game.pgn -o x.tex [--book]` - LaTeX report (no LaTeX installed here, so it can't be compiled; check structure only)
 
 ## Gotchas
-- Everything shown about a move comes from Stockfish; board-counting metrics (space/mobility/king safety/FTI) were deliberately removed, don't reintroduce them
+- Everything shown about a move comes from Stockfish, except the `Book:` opening name (Lichess data in `openings/`, never a rating); board-counting metrics (space/mobility/king safety/FTI) were deliberately removed, don't reintroduce them
 - Fixed-depth search: 1 thread is fastest (7 threads measured up to 30x slower); threads only help with `--time-limit`. Benchmark before changing engine defaults
 - Header/title/end card read from the PGN; re-run `--analyze` only when the moves change
 - Fonts are Courier New (monospace): text capacity comes from `char_width()`; Manim `Text` drops leading spaces from its width, so move-list rows are anchored on an invisible `|`

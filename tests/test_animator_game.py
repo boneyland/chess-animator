@@ -66,6 +66,13 @@ class AnalysisPanelTest(unittest.TestCase):
         move = _move(82, "Rc2#", "best", "Ba3#", ["Ba3#"], eval_loss=0)
         self.assertEqual(AnalysisPanel.body_lines(move), [])
 
+    def test_book_move_names_its_opening_before_the_best_line(self):
+        move = _move(3, "c4", "good", "d4", ["d4", "g6"],
+                     book_opening="English Opening: Anglo-Indian Defense")
+        self.assertEqual(AnalysisPanel.body_lines(move),
+                         ["Book: English Opening: Anglo-Indian Defense",
+                          "Best line: 2.d4 g6"])
+
     def test_analysis_without_a_best_line_falls_back_to_the_best_move(self):
         move = _move(21, "Bg5", "mistake", "Be2", [])
         self.assertEqual(AnalysisPanel.body_lines(move), ["Best: 11.Be2"])
@@ -223,6 +230,48 @@ class GameInfoSourceTest(unittest.TestCase):
     def test_header_comes_from_the_json_without_a_pgn(self):
         info = AnalysisData.from_json_file(Path(self.json_path)).game_info
         self.assertEqual((info.white, info.event), ("Old White", "Old Event"))
+
+
+def _json_with_moves(ucis, **extra) -> str:
+    moves = [{"ply": i, "move_uci": uci} for i, uci in enumerate(ucis, 1)]
+    return _write_temp(".json", json.dumps({"moves": moves, **extra}))
+
+
+class OpeningBookTest(unittest.TestCase):
+    """Opening names from the Lichess data in openings/."""
+
+    # 1.Nf3 Nf6 2.c4 g6 3.Nc3 Bg7 4.d4 O-O 5.Bf4 (out of book) d5 (a Grünfeld)
+    MOVES = ["g1f3", "g8f6", "c2c4", "g7g6", "b1c3", "f8g7", "d2d4", "e8g8",
+             "c1f4", "d7d5"]
+    GRUNFELD = ("D92", "Grünfeld Defense: Three Knights Variation, Hungarian Attack")
+
+    def load(self, pgn_headers=None, **json_extra):
+        json_path = _json_with_moves(self.MOVES, **json_extra)
+        self.addCleanup(os.remove, json_path)
+        pgn = None
+        if pgn_headers is not None:
+            pgn = _write_temp(".pgn", pgn_headers + "\n1. Nf3 *\n")
+            self.addCleanup(os.remove, pgn)
+        return AnalysisData.from_json_file(Path(json_path),
+                                           pgn_path=Path(pgn) if pgn else None)
+
+    def test_a_game_without_an_opening_header_is_named_from_its_moves(self):
+        info = self.load('[White "A"]\n').game_info
+        self.assertEqual((info.eco, info.opening), self.GRUNFELD)
+
+    def test_the_analyzer_placeholders_count_as_no_opening(self):
+        info = self.load(opening_name="Unknown", opening_eco="???").game_info
+        self.assertEqual(info.eco, "D92")
+
+    def test_the_pgn_opening_header_wins(self):
+        info = self.load('[ECO "D80"]\n[Opening "Grünfeld Defense"]\n').game_info
+        self.assertEqual((info.eco, info.opening), ("D80", "Grünfeld Defense"))
+
+    def test_moves_in_book_carry_the_opening_name(self):
+        moves = self.load().moves
+        self.assertEqual([m.book_opening for m in moves[:2]],
+                         ["Zukertort Opening", "Zukertort Opening"])
+        self.assertEqual(moves[8].book_opening, "")
 
 
 class DefaultNotesPathTest(unittest.TestCase):

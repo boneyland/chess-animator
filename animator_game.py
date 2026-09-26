@@ -153,6 +153,7 @@ class ScaledEvaluationBar(manim_chess.EvaluationBar):
 
 # Import the comment parser
 from convert_script_to_comment_dict import load_commentary
+from chess_openings import OpeningBook
 
 # Optionally import MetricPlotPanel — graceful fallback if not yet written
 try:
@@ -194,6 +195,10 @@ class MoveData:
     search_depth_after: int = 0
     search_lines: int = 0
 
+    # Opening name from the Lichess opening data while the move is in book
+    # (set when the analysis is loaded, see AnalysisData); "" once out of it
+    book_opening: str = ""
+
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "MoveData":
         """
@@ -222,6 +227,16 @@ class MoveData:
         )
 
 
+# What the opening name holds when it isn't known ("Unknown" is the
+# analyzer's placeholder when the PGN has no Opening header)
+MISSING_OPENING = ("", "?", "Unknown")
+
+
+@functools.lru_cache(maxsize=None)
+def _opening_book() -> OpeningBook:
+    return OpeningBook.load()
+
+
 @dataclass
 class AnalysisData:
     """Container for game analysis data."""
@@ -231,6 +246,22 @@ class AnalysisData:
     black_accuracy: float
     # Engine settings from the analysis file ({} in older files)
     engine: Dict[str, Any] = field(default_factory=dict)
+
+    def name_opening(self) -> "AnalysisData":
+        """
+        Tag the moves that are in book with their opening, and name the game's
+        opening from its moves when the PGN has no Opening header.
+        """
+        book = _opening_book()
+        ucis = [m.move_uci for m in self.moves]
+        for move, opening in zip(self.moves, book.openings_by_ply(ucis)):
+            move.book_opening = opening.name if opening else ""
+        info = self.game_info
+        if info.opening in MISSING_OPENING:
+            opening = book.identify(ucis)
+            if opening:
+                info.eco, info.opening = opening.eco, opening.name
+        return self
 
     def engine_summary(self) -> str:
         """e.g. "Stockfish 17.1 · depth 20 (reached 16–24) · 3 lines · 7 threads"."""
@@ -291,7 +322,7 @@ class AnalysisData:
             white_accuracy=float(white_stats.get("accuracy", 0.0)),
             black_accuracy=float(black_stats.get("accuracy", 0.0)),
             engine=data.get("engine", {}),
-        )
+        ).name_opening()
 
     @classmethod
     def from_analyzer(cls, pgn_path: Path,
@@ -340,7 +371,7 @@ class AnalysisData:
             engine={"name": analyzer.engine_version, "depth": depth,
                     "time_limit": analyzer.time_limit, "lines": analyzer.lines,
                     "threads": analyzer.threads, "hash_mb": analyzer.hash_mb},
-        )
+        ).name_opening()
 
     def save_to_json(self, output_path: Path):
         """Save analysis to JSON for reuse."""
@@ -690,9 +721,14 @@ class AnalysisPanel:
 
     @classmethod
     def body_lines(cls, move: MoveData) -> List[str]:
-        """Mate advice, and the best line when the move wasn't the engine's choice."""
+        """
+        The opening while the move is in book, mate advice, and the best line
+        when the move wasn't the engine's choice.
+        """
         width = cls.chars_per_line()
         lines = []
+        if move.book_opening:
+            lines += wrap_text(f"Book: {move.book_opening}", width)
         if move.mate_advice:
             lines += wrap_text(move.mate_advice + ".", width)
         if move.mate_line:
