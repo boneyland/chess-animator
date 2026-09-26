@@ -168,6 +168,57 @@ def default_search_threads(time_limit: Optional[float]) -> int:
     """
     return 1 if time_limit is None else default_threads()
 
+
+def _format_duration(seconds: float) -> str:
+    """m:ss, or h:mm:ss from one hour up."""
+    seconds = round(seconds)
+    h, rest = divmod(seconds, 3600)
+    m, s = divmod(rest, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def format_progress(done: int, total: int, elapsed: float) -> str:
+    """One-line analysis progress, with a time estimate while moves remain."""
+    pct = done * 100 // total if total else 100
+    line = f"Analyzing move {done}/{total} ({pct}%) · {_format_duration(elapsed)} elapsed"
+    if 0 < done < total:
+        line += f" · ~{_format_duration(elapsed / done * (total - done))} left"
+    return line
+
+
+class ProgressLine:
+    """
+    A progress(done, total) callback for analyze_game that prints
+    format_progress().  In a terminal it redraws one line in place; when
+    piped it prints plain lines.  The clock restarts at progress(0, total),
+    so one ProgressLine can follow each game of a multi-game analysis.
+    """
+
+    def __init__(self):
+        self.interactive = sys.stdout.isatty()
+        self.start = time.monotonic()
+        self.open_len = 0   # length of the line being redrawn; 0 = none open
+
+    def __call__(self, done: int, total: int) -> None:
+        now = time.monotonic()
+        if done == 0:
+            self.start = now
+        line = format_progress(done, total, now - self.start)
+        if not self.interactive:
+            print(line, flush=True)
+            return
+        # Pad over any leftover characters from a longer previous line
+        finished = done == total
+        print("\r" + line.ljust(self.open_len), end="\n" if finished else "",
+              flush=True)
+        self.open_len = 0 if finished else len(line)
+
+    def finish(self) -> None:
+        """End a line left open by an interrupted analysis, e.g. before an error."""
+        if self.open_len:
+            print()
+            self.open_len = 0
+
 # Maximum eval_loss to count towards accuracy calculations (in centipawns)
 # This prevents mate score transitions from producing absurd values (8000+ cp)
 # that would completely distort accuracy statistics. A cap of 1500cp (15 pawns)
@@ -714,16 +765,19 @@ class EnhancedGameAnalyzer:
     def analyze_all_games(self, pgn_source: Union[str, io.StringIO],
                           min_diagram_spacing: int = 6,
                           top_n_swings: int = 2,
-                          verbose: bool = True) -> List[EnhancedGameAnalysisResult]:
+                          verbose: bool = True,
+                          progress: Optional[Callable[[int, int], None]] = None
+                          ) -> List[EnhancedGameAnalysisResult]:
         """
         Analyze all games in a PGN file.
-        
+
         Args:
             pgn_source: PGN file path, PGN string, or StringIO object
             min_diagram_spacing: Minimum ply distance between critical position diagrams
             top_n_swings: Number of "biggest swing" positions to always include
             verbose: Print progress messages
-            
+            progress: Optional callback passed to analyze_game for each game
+
         Returns:
             List of EnhancedGameAnalysisResult objects, one per game
         """
@@ -760,7 +814,8 @@ class EnhancedGameAnalyzer:
                 result = self.analyze_game(
                     game_pgn,
                     min_diagram_spacing=min_diagram_spacing,
-                    top_n_swings=top_n_swings
+                    top_n_swings=top_n_swings,
+                    progress=progress
                 )
                 results.append(result)
                 
@@ -1289,7 +1344,13 @@ def analyze_game_to_report(
         if verbose:
             print(f"Engine: {analyzer.engine_version}")
 
-        analysis = analyzer.analyze_game(pgn_source, top_n_swings=top_n_swings)
+        progress = ProgressLine() if verbose else None
+        try:
+            analysis = analyzer.analyze_game(pgn_source, top_n_swings=top_n_swings,
+                                             progress=progress)
+        finally:
+            if progress:
+                progress.finish()
 
         if verbose:
             print(f"Analysis complete in {analysis.analysis_time:.1f}s")
@@ -1369,11 +1430,17 @@ def analyze_games_to_book(
         if verbose:
             print(f"Engine: {analyzer.engine_version}")
 
-        analyses = analyzer.analyze_all_games(
-            pgn_source,
-            top_n_swings=top_n_swings,
-            verbose=verbose
-        )
+        progress = ProgressLine() if verbose else None
+        try:
+            analyses = analyzer.analyze_all_games(
+                pgn_source,
+                top_n_swings=top_n_swings,
+                verbose=verbose,
+                progress=progress
+            )
+        finally:
+            if progress:
+                progress.finish()
 
         if not analyses:
             raise ValueError("No games found in PGN file")
@@ -1437,10 +1504,17 @@ Examples:
                             "via STOCKFISH_PATH or PATH)")
     parser.add_argument("-d", "--depth", type=int, default=20,
                        help="Analysis depth (default: 20)")
-    parser.add_argument("-t", "--time", type=float, default=None,
+    parser.add_argument("-t", "--time", "--time-limit", type=float, default=None,
+                       dest="time", metavar="SECONDS",
                        help="Max seconds per position, on top of --depth (default: no cap)")
     parser.add_argument("--lines", type=positive_int, default=ANALYSIS_LINES,
                        help=f"Lines (MultiPV) searched before each move (default: {ANALYSIS_LINES})")
+    parser.add_argument("--threads", type=positive_int, default=None, metavar="N",
+                       help="CPU threads for Stockfish (default: 1, or all cores but one "
+                            "with --time, where extra threads help)")
+    parser.add_argument("--hash", type=positive_int, default=None, metavar="MB",
+                       dest="hash_mb",
+                       help=f"Stockfish hash table size in MB (default: {DEFAULT_HASH_MB})")
     parser.add_argument("--no-diagrams", action="store_true",
                        help="Don't include position diagrams")
     parser.add_argument("-q", "--quiet", action="store_true",
@@ -1455,14 +1529,22 @@ Examples:
                        help="Author for the book (used with --book)")
     
     args = parser.parse_args()
+    engine_args = (args.stockfish, args.depth, args.time)
+    engine_kwargs = dict(threads=args.threads, hash_mb=args.hash_mb, lines=args.lines)
+    progress = None if args.quiet else ProgressLine()
 
     if args.book:
         # Multi-game book mode
-        with EnhancedGameAnalyzer(args.stockfish, args.depth, args.time, lines=args.lines) as analyzer:
+        with EnhancedGameAnalyzer(*engine_args, **engine_kwargs) as analyzer:
             if not args.quiet:
                 print(f"Analyzing all games with {analyzer.engine_version}...")
             
-            analyses = analyzer.analyze_all_games(args.pgn_file, verbose=not args.quiet)
+            try:
+                analyses = analyzer.analyze_all_games(args.pgn_file, verbose=not args.quiet,
+                                                      progress=progress)
+            finally:
+                if progress:
+                    progress.finish()
             
             if not analyses:
                 print("No games found in PGN file")
@@ -1505,11 +1587,15 @@ Examples:
     
     else:
         # Single game mode (original behavior)
-        with EnhancedGameAnalyzer(args.stockfish, args.depth, args.time, lines=args.lines) as analyzer:
+        with EnhancedGameAnalyzer(*engine_args, **engine_kwargs) as analyzer:
             if not args.quiet:
                 print(f"Analyzing with {analyzer.engine_version}...")
             
-            analysis = analyzer.analyze_game(args.pgn_file)
+            try:
+                analysis = analyzer.analyze_game(args.pgn_file, progress=progress)
+            finally:
+                if progress:
+                    progress.finish()
             
             if not args.quiet:
                 print(f"Analysis complete in {analysis.analysis_time:.1f}s")
