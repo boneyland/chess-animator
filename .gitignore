@@ -11,3 +11,9 @@ media/
 *_animator_config.json
 *.tex
 *.pdf
+*.aux
+*.log
+*.toc
+*.out
+*.fls
+*.fdb_latexmk
