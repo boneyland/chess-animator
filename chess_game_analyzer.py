@@ -955,6 +955,10 @@ class EnhancedLaTeXReportGenerator:
         return [
             rf"\documentclass[11pt]{{{document_class}}}",
             r"\usepackage[utf8]{inputenc}",
+            # skak labels the board's sides in shape `up', which Computer
+            # Modern Sans calls `n'.  Mapping one to the other is the same
+            # font, without a font-substitution warning.
+            r"\DeclareFontShape{OT1}{cmss}{m}{up}{<->ssub * cmss/m/n}{}",
             r"\usepackage{xskak}",
             r"\usepackage{amsmath}",
             r"\usepackage{amssymb}",
