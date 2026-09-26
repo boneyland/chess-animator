@@ -5,8 +5,10 @@ Run from the repository root:
     python -m unittest discover tests
 """
 
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -26,6 +28,20 @@ class SceneExitCodeTest(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 run_animator.main()
         self.assertEqual(cm.exception.code, 3)
+
+    def test_ctrl_c_during_render_exits_quietly_and_removes_the_config(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sys, "argv", ["run_animator.py", "game", "--no-preview"]), \
+             mock.patch.object(run_animator.subprocess, "run", side_effect=KeyboardInterrupt), \
+             mock.patch("builtins.print"):
+            cwd = os.getcwd()
+            os.chdir(tmp)
+            self.addCleanup(os.chdir, cwd)
+            Path("game.pgn").write_text("1. e4 *\n")
+            with self.assertRaises(SystemExit) as cm:
+                run_animator.main()
+            self.assertEqual(cm.exception.code, 130)
+            self.assertFalse(Path("game_animator_config.json").exists())
 
 
 if __name__ == "__main__":

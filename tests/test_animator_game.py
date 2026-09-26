@@ -17,8 +17,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from animator_game import (AnalysisData, AnalysisPanel, CommentPanel, MoveData,
-                           ScaledEvaluationBar, comment_hold_seconds,
-                           default_notes_path, format_line)
+                           ScaledEvaluationBar, analysis_sources,
+                           comment_hold_seconds, default_notes_path,
+                           format_line)
 
 
 def _move(ply, san, classification, best_san, best_line=(), eval_after=21,
@@ -230,6 +231,24 @@ class GameInfoSourceTest(unittest.TestCase):
     def test_header_comes_from_the_json_without_a_pgn(self):
         info = AnalysisData.from_json_file(Path(self.json_path)).game_info
         self.assertEqual((info.white, info.event), ("Old White", "Old Event"))
+
+
+class AnalysisSourcesTest(unittest.TestCase):
+
+    def test_a_game_without_its_analysis_is_analysed_live_not_swapped_for_another(self):
+        jsons, pgns = analysis_sources("games/soda-vs-neo.pgn", None)
+        self.assertEqual(jsons, [Path("games/soda-vs-neo_analysis.json")])
+        self.assertEqual(pgns, [Path("games/soda-vs-neo.pgn")])
+
+    def test_the_configured_analysis_comes_first(self):
+        jsons, _ = analysis_sources("games/x.pgn", "elsewhere/x_analysis.json")
+        self.assertEqual(jsons[0], Path("elsewhere/x_analysis.json"))
+        self.assertNotIn(Path("sample_game_analysis.json"), jsons)
+
+    def test_the_default_files_are_used_only_without_a_game(self):
+        jsons, pgns = analysis_sources(None, None)
+        self.assertIn(Path("sample_game_analysis.json"), jsons)
+        self.assertIn(Path("sample_game.pgn"), pgns)
 
 
 def _json_with_moves(ucis, **extra) -> str:

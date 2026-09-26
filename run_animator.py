@@ -342,17 +342,20 @@ def main():
     print(f"  CHESS_ANIMATOR_CONFIG={config_file}")
     print()
 
-    result = subprocess.run(cmd, env=env)
-
-    # ------------------------------------------------------------------
-    # Clean up the ephemeral config file
-    # ------------------------------------------------------------------
+    # Ctrl+C reaches manim too, which stops on its own ("Aborted!"); exit
+    # with the usual status for an interrupt rather than a traceback
     try:
-        config_file.unlink()
-    except OSError:
-        pass  # non-fatal
+        returncode = subprocess.run(cmd, env=env).returncode
+    except KeyboardInterrupt:
+        returncode = 130
+    finally:
+        # Clean up the ephemeral config file
+        try:
+            config_file.unlink()
+        except OSError:
+            pass  # non-fatal
 
-    sys.exit(result.returncode)
+    sys.exit(returncode)
 
 
 if __name__ == "__main__":

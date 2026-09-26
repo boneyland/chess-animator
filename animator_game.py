@@ -829,6 +829,27 @@ def default_notes_path(pgn_path) -> Path:
     return pgn_path.with_name(pgn_path.stem + "_notes.txt")
 
 
+def analysis_sources(pgn_path, analysis_path) -> Tuple[List[Path], List[Path]]:
+    """
+    Where to look for a game's analysis: (JSON files, PGNs to analyse live),
+    each in order of preference.
+
+    Once a game is named, only its own files count, so a game without an
+    analysis is analysed live rather than shown with another game's moves.
+    The default files are for running the scene without a config.
+    """
+    if not pgn_path and not analysis_path:
+        return ([Path("game_analysis.json"), Path("sample_game_analysis.json")],
+                [Path("game.pgn"), Path("sample_game.pgn")])
+    jsons = [Path(analysis_path)] if analysis_path else []
+    pgns = []
+    if pgn_path:
+        pgn_path = Path(pgn_path)
+        jsons.append(pgn_path.with_name(pgn_path.stem + "_analysis.json"))
+        pgns.append(pgn_path)
+    return jsons, pgns
+
+
 # =============================================================================
 # Board moves
 # =============================================================================
@@ -891,28 +912,15 @@ class AnimatedGame(Scene):
         2. Live Stockfish run (pgn_path)
         3. Hard error
         """
-        # Try analysis JSON first
-        candidates = []
-        if self.analysis_path:
-            candidates.append(Path(self.analysis_path))
-        if self.pgn_path:
-            candidates.append(Path(self.pgn_path).with_suffix("").parent /
-                               (Path(self.pgn_path).stem + "_analysis.json"))
-        for p in ("game_analysis.json", "sample_game_analysis.json"):
-            candidates.append(Path(p))
+        candidates, pgn_candidates = analysis_sources(self.pgn_path, self.analysis_path)
 
+        # Try analysis JSON first
         for path in candidates:
             if path.exists():
                 print(f"Loading analysis from {path}")
                 return AnalysisData.from_json_file(path, self.pgn_path)
 
         # Fall back to live analysis
-        pgn_candidates = []
-        if self.pgn_path:
-            pgn_candidates.append(Path(self.pgn_path))
-        for p in ("game.pgn", "sample_game.pgn"):
-            pgn_candidates.append(Path(p))
-
         for path in pgn_candidates:
             if path.exists():
                 print(f"Running live Stockfish analysis on {path}…")
