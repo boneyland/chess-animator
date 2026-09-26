@@ -23,7 +23,7 @@ from typing import Optional
 
 from manim import *
 import manim_chess
-import manim_fixes  # noqa: F401  (patches manim issue #5035 on import)
+import upstream_fixes  # noqa: F401  (patches library bugs on import)
 
 from animator_layout import (
     COLORS, FONTS,
