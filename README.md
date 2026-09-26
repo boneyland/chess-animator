@@ -39,7 +39,7 @@ The end card lists the engine and search settings used, e.g. `Stockfish 19 · de
 | Dependency | Notes |
 |---|---|
 | Python 3.10+ | |
-| [Manim Community](https://www.manim.community/) v0.18+ | Tested with v0.21 |
+| [manim](https://github.com/ManimCommunity/manim) by [Manim Community](https://www.manim.community/) v0.18+ | Tested with v0.21 |
 | [manim-chess](https://github.com/swoyer2/manim_chess) | Provides `Board` and `EvaluationBar` |
 | [python-chess](https://python-chess.readthedocs.io/) | Installed as `chess` |
 | [Stockfish](https://stockfishchess.org/download/) | Binary on your system |
