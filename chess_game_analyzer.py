@@ -1179,8 +1179,6 @@ class EnhancedLaTeXReportGenerator:
                 current_line += "?"
             elif move.classification == "inaccuracy":
                 current_line += "?!"
-            elif move.classification == "best" and move.move_san == move.best_move_san:
-                current_line += "!"
             
             # Comments for significant moves
             if move.mate_advice:
