@@ -26,11 +26,11 @@ Metrics strip — full-width horizontal band across the bottom of the frame,
 Key geometry decisions
 ----------------------
 - Manim default coordinate system: x ∈ [-7.11, 7.11], y ∈ [-4.0, 4.0]
-- The metrics strip is METRICS_HEIGHT tall and sits flush at the bottom.
-- UPPER_BOTTOM_Y is the shared boundary: upper zone ends here, strip starts.
-- A small GAP separates the strip from the upper zone for visual breathing room.
-- The board is re-centred vertically within the upper zone.
-- The three right panels are re-computed to fit the (now shorter) upper zone.
+- The metrics strip is METRICS_HEIGHT tall and sits at the bottom margin.
+- METRICS_GAP separates the strip from the upper zone, whose bottom edge is
+  UPPER_BOTTOM_Y.
+- The board is centred vertically within the upper zone.
+- The three right panels share the upper zone's height by fixed ratios.
 """
 
 from dataclasses import dataclass
@@ -56,12 +56,12 @@ MARGIN = 0.3   # general margin from frame edges
 
 
 # =============================================================================
-# Metrics Strip  (Option B — full-width bottom band)
+# Metrics Strip  (full-width bottom band)
 # =============================================================================
 
 # Height of the metrics strip in Manim units.
 # 1.6 gives the plot room for its label and curve while leaving the upper
-# zone well proportioned (≈ 75 % of frame height).
+# zone well proportioned (≈ 70 % of frame height).
 METRICS_HEIGHT = 1.6
 
 # Gap between the bottom of the upper zone and the top of the strip
@@ -92,14 +92,12 @@ UPPER_CENTER_Y = (UPPER_TOP_Y + UPPER_BOTTOM_Y) / 2
 # Board Layout  (left side of upper zone)
 # =============================================================================
 
-# Scale slightly tighter than before so the board fits the reduced upper zone.
-# The original BOARD_SCALE = 0.80 was tuned for a taller zone; 0.74 keeps the
-# board comfortably clear of the metrics strip with a little breathing room.
+# Keeps the board clear of the metrics strip with a little breathing room
 BOARD_SCALE = 0.74
 
-# Centre the board within the upper zone vertically
-# Far enough left that the eval bar sits at the left margin, leaving the
-# panels as much width as possible
+# The board is centred vertically in the upper zone, and far enough left
+# that the eval bar sits at the left margin, leaving the panels as much
+# width as possible
 BOARD_CENTER_X = -3.7   # leaves room for the eval bar's label at the margin
 BOARD_CENTER_Y = UPPER_CENTER_Y   # tracks the upper zone, not a hard-coded 0.0
 
@@ -119,15 +117,14 @@ PANEL_RIGHT_X  = FRAME_RIGHT_X - MARGIN   # ~6.81
 PANEL_WIDTH    = PANEL_RIGHT_X - PANEL_LEFT_X
 PANEL_CENTER_X = (PANEL_LEFT_X + PANEL_RIGHT_X) / 2
 
-# Vertical boundaries now follow the upper zone, not the full frame
+# Vertical boundaries: the upper zone
 PANEL_TOP_Y    = UPPER_TOP_Y      #  3.7
 PANEL_BOTTOM_Y = UPPER_BOTTOM_Y   # ~-1.95
 PANEL_TOTAL_HEIGHT = PANEL_TOP_Y - PANEL_BOTTOM_Y
 
-# Panel height ratios — same proportions as before
+# Panel height ratios; the analysis panel takes what is left
 HEADER_RATIO     = 0.22
 MOVE_LIST_RATIO  = 0.44   # moves and commentary share this panel
-COMMENTARY_RATIO = 0.34   # analysis panel; remainder, not used directly below
 
 # Calculate panel boundaries
 HEADER_TOP_Y    = PANEL_TOP_Y
@@ -136,8 +133,8 @@ HEADER_BOTTOM_Y = PANEL_TOP_Y - (PANEL_TOTAL_HEIGHT * HEADER_RATIO)
 MOVE_LIST_TOP_Y    = HEADER_BOTTOM_Y - 0.1
 MOVE_LIST_BOTTOM_Y = MOVE_LIST_TOP_Y - (PANEL_TOTAL_HEIGHT * MOVE_LIST_RATIO)
 
-COMMENTARY_TOP_Y    = MOVE_LIST_BOTTOM_Y - 0.1
-COMMENTARY_BOTTOM_Y = PANEL_BOTTOM_Y      # commentary fills remaining space
+ANALYSIS_TOP_Y    = MOVE_LIST_BOTTOM_Y - 0.1
+ANALYSIS_BOTTOM_Y = PANEL_BOTTOM_Y      # the analysis panel fills the rest
 
 # The moves panel is split into two columns: the move list on the left and
 # commentary on the right
@@ -156,7 +153,7 @@ ANALYSIS_RIGHT_X = PANEL_RIGHT_X - PANEL_PADDING
 # Panel vertical centres
 HEADER_CENTER_Y     = (HEADER_TOP_Y     + HEADER_BOTTOM_Y)     / 2
 MOVE_LIST_CENTER_Y  = (MOVE_LIST_TOP_Y  + MOVE_LIST_BOTTOM_Y)  / 2
-COMMENTARY_CENTER_Y = (COMMENTARY_TOP_Y + COMMENTARY_BOTTOM_Y) / 2
+ANALYSIS_CENTER_Y   = (ANALYSIS_TOP_Y   + ANALYSIS_BOTTOM_Y)   / 2
 
 
 # =============================================================================
@@ -181,14 +178,12 @@ class ColorScheme:
     white_player: str = "#2a2a2a"     # Dark for White player label
     black_player: str = "#2a2a2a"     # Dark for Black player label
 
-    # Move classification colors (darkened for legibility on light bg)
-    brilliant:  str = "#0e7a76"       # Dark teal
-    great:      str = "#2e5f8a"       # Dark blue
+    # Move classification colors (darkened for legibility on light bg);
+    # a move with no rating is drawn in text_primary
     best:       str = "#4a7a1e"       # Dark green
     inaccuracy: str = "#a07800"       # Dark amber
     mistake:    str = "#b05010"       # Dark orange
     blunder:    str = "#8b1a1a"       # Dark red
-    missed_win: str = "#9b2020"       # Deep red
 
     # Metric plot line colors (dark, readable on light background)
     plot_net_pos:    str = "#2e6b10"  # Dark green    — net advantage (positive)
@@ -224,7 +219,7 @@ class Typography:
     mono_font:    str = "Courier New"
     weight:       str = BOLD           # Courier New's regular weight is too thin on video
 
-    # Sizes (Manim units; ~1 unit ≈ 36 pt at default resolution)
+    # Sizes: Text font_size, in points
     title_size:       int = 20
     subtitle_size:    int = 14
     player_name_size: int = 14
@@ -300,23 +295,19 @@ def get_classification_color(classification: str) -> str:
     Return the hex color string for a move classification.
 
     Args:
-        classification: e.g. "blunder", "best", "inaccuracy"
+        classification: "best", "inaccuracy", "mistake", "blunder", or ""
+                        for a move with no rating
 
     Returns:
-        Hex color string.
+        Hex color string (text_primary for a move with no rating).
     """
-    key = classification.lower().replace(" ", "_")
     color_map = {
-        "brilliant":  COLORS.brilliant,
-        "great":      COLORS.great,
         "best":       COLORS.best,
         "inaccuracy": COLORS.inaccuracy,
         "mistake":    COLORS.mistake,
         "blunder":    COLORS.blunder,
-        "missed_win": COLORS.missed_win,
-        "miss":       COLORS.missed_win,
     }
-    return color_map.get(key, COLORS.text_primary)
+    return color_map.get(classification.lower(), COLORS.text_primary)
 
 
 def format_player_display(name: str, elo: str = None) -> str:
@@ -405,7 +396,7 @@ if __name__ == "__main__":
     print("Right panels:")
     print(f"  Header:      y = {HEADER_TOP_Y:.2f}  to  {HEADER_BOTTOM_Y:.2f}")
     print(f"  Moves + commentary: y = {MOVE_LIST_TOP_Y:.2f}  to  {MOVE_LIST_BOTTOM_Y:.2f}")
-    print(f"  Analysis:    y = {COMMENTARY_TOP_Y:.2f}  to  {COMMENTARY_BOTTOM_Y:.2f}")
+    print(f"  Analysis:    y = {ANALYSIS_TOP_Y:.2f}  to  {ANALYSIS_BOTTOM_Y:.2f}")
     print(f"  Panel width: {PANEL_WIDTH:.2f},  centre x: {PANEL_CENTER_X:.2f}")
     print()
     print("Metrics strip:")

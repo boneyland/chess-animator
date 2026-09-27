@@ -165,10 +165,10 @@ class EvalStripTest(unittest.TestCase):
                  for i, cp in enumerate(evals_after)]
         panel = MetricPlotPanel(moves)
         for idx in range(len(moves)):
-            panel.advance_to_move(idx)
+            panel.advance_to_ply(idx)
         return panel._segments.submobjects
 
-    def test_one_segment_per_move_starting_from_the_starting_position(self):
+    def test_one_segment_per_ply_starting_from_the_starting_position(self):
         from animator_metrics import _PLOT_DRAW_LEFT, _y_coord
 
         segments = self._plot((30, 150, -200, 50))

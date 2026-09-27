@@ -2,7 +2,7 @@
 animator_metrics.py
 
 Draws the metrics strip at the bottom of the chess video frame: one
-full-width plot of Stockfish's evaluation, revealed one move at a time as
+full-width plot of Stockfish's evaluation, revealed one ply at a time as
 the game is animated.
 
 The evaluation is plotted as White's win-probability advantage in [-1, +1]
@@ -12,14 +12,14 @@ starting position's eval, and is green while White is better and red while
 Black is better; a segment that crosses zero changes colour where it crosses.
 
 The plot is built from individual Manim Line segments rather than a
-parametric function, which lets us add exactly one segment per move inside
+parametric function, which lets us add exactly one segment per ply inside
 the animation loop with no re-rendering of earlier data.
 
 Public API (used by animator_game.py)
 --------------------------------------
     panel = MetricPlotPanel(all_moves)   # construct once
     scene.add(panel.get_mobject())       # add static elements to scene
-    anim  = panel.advance_to_move(idx)   # call inside the animation loop
+    anim  = panel.advance_to_ply(idx)    # call inside the animation loop
     scene.play(anim, ...)
 """
 
@@ -120,13 +120,13 @@ class MetricPlotPanel:
         self.add(metric_panel.get_mobject())
 
         # Inside the loop
-        anim = metric_panel.advance_to_move(idx)
+        anim = metric_panel.advance_to_ply(idx)
         self.play(..., anim, run_time=0.4)
     """
 
     def __init__(self, all_moves: "List[MoveData]"):
-        self.total_moves = len(all_moves)
-        # One point for the starting position, then one after each move
+        self.total_plies = len(all_moves)
+        # One point for the starting position, then one after each ply
         self._values = ([winning_chances(all_moves[0].eval_before)] if all_moves else [])
         self._values += [winning_chances(m.eval_after) for m in all_moves]
 
@@ -166,15 +166,15 @@ class MetricPlotPanel:
         """
         return VGroup(self._static, self._segments, self._cursor)
 
-    def advance_to_move(self, idx: int) -> Animation:
+    def advance_to_ply(self, idx: int) -> Animation:
         """
-        Extend the plot by one segment, from the position before move `idx`
+        Extend the plot by one segment, from the position before ply `idx`
         (0-based) to the position after it, and move the cursor there.
 
         Returns an animation that can be played in parallel with the board
         move and panel updates.
         """
-        if not 0 <= idx < self.total_moves:
+        if not 0 <= idx < self.total_plies:
             return Wait(0)
 
         n = len(self._values)
@@ -207,16 +207,16 @@ class MetricsDebug(Scene):
 
         N = 40
 
-        class _FakeMove:
+        class _FakePly:
             def __init__(self, i):
                 self.eval_before = 300 * math.sin(2 * math.pi * (i - 1) / N)
                 self.eval_after = 300 * math.sin(2 * math.pi * i / N)
 
-        panel = MetricPlotPanel([_FakeMove(i) for i in range(N)])
+        panel = MetricPlotPanel([_FakePly(i) for i in range(N)])
         self.add(panel.get_mobject())
         self.wait(0.5)
 
         for idx in range(N):
-            self.play(panel.advance_to_move(idx), run_time=0.08)
+            self.play(panel.advance_to_ply(idx), run_time=0.08)
 
         self.wait(2)

@@ -39,13 +39,12 @@ from animator_layout import (
     COLORS, FONTS, FRAME_WIDTH, FRAME_HEIGHT,
     BOARD_SCALE, BOARD_CENTER_X, BOARD_CENTER_Y,
     EVAL_BAR_SCALE, EVAL_BAR_OFFSET,
-    PANEL_LEFT_X, PANEL_RIGHT_X, PANEL_CENTER_X, PANEL_WIDTH,
-    MOVES_COLUMN_RIGHT_X, MOVES_COLUMN_CENTER_X, MOVES_COLUMN_WIDTH,
-    MOVES_COLUMN_PADDING,
+    PANEL_LEFT_X, PANEL_CENTER_X,
+    MOVES_COLUMN_RIGHT_X, MOVES_COLUMN_CENTER_X, MOVES_COLUMN_PADDING,
     COMMENT_LEFT_X, COMMENT_RIGHT_X, ANALYSIS_LEFT_X, ANALYSIS_RIGHT_X,
-    HEADER_TOP_Y, HEADER_BOTTOM_Y, HEADER_CENTER_Y,
-    MOVE_LIST_TOP_Y, MOVE_LIST_BOTTOM_Y, MOVE_LIST_CENTER_Y,
-    COMMENTARY_TOP_Y, COMMENTARY_BOTTOM_Y, COMMENTARY_CENTER_Y,
+    HEADER_CENTER_Y,
+    MOVE_LIST_TOP_Y, MOVE_LIST_BOTTOM_Y,
+    ANALYSIS_TOP_Y, ANALYSIS_BOTTOM_Y,
     ANNOTATION_COLORS,
     get_panel_rect, get_classification_color, format_player_display
 )
@@ -98,9 +97,6 @@ class ScaledEvaluationBar(manim_chess.EvaluationBar):
     All heights are derived at runtime from self.black_rectangle.height
     (world units, after any scale() call) so the formula stays correct
     regardless of EVAL_BAR_SCALE or any other transform applied externally.
-    Using the hardcoded raw value 6.18 as the max was the bug: after
-    scale(0.72) the bar is only 4.45 world units tall, so a rect_height
-    of 3.09 filled 69% of the bar instead of the intended 50%.
     """
 
     _SIGMOID_K = 0.00368208  # Lichess winning-chances coefficient (per cp)
@@ -144,16 +140,9 @@ class ScaledEvaluationBar(manim_chess.EvaluationBar):
         return [Transform(self.white_rectangle, new_rect),
                 Transform(self.bot_text, new_text)]
 
-# Import the comment parser
 from convert_script_to_comment_dict import load_commentary
 from chess_openings import OpeningBook
-
-# Optionally import MetricPlotPanel — graceful fallback if not yet written
-try:
-    from animator_metrics import MetricPlotPanel
-    METRICS_AVAILABLE = True
-except ImportError:
-    METRICS_AVAILABLE = False
+from animator_metrics import MetricPlotPanel
 
 # =============================================================================
 # Analysis Data Loading
@@ -161,7 +150,10 @@ except ImportError:
 
 @dataclass
 class MoveData:
-    """Simplified move data for animation, all of it from Stockfish's analysis."""
+    """
+    Simplified move data for animation.  Everything comes from Stockfish's
+    analysis except book_opening, which comes from the Lichess opening data.
+    """
     # Core move info
     ply: int
     move_san: str
@@ -257,7 +249,10 @@ class AnalysisData:
         return self
 
     def engine_summary(self) -> str:
-        """e.g. "Stockfish 17.1 · depth 20 (reached 16–24) · 3 lines · 7 threads"."""
+        """
+        e.g. "Stockfish 19 · depth 14–245 · 4s per position · 1 line · 7 threads"
+        for a search by time, or "Stockfish 19 · depth 20 · 1 line · 1 thread".
+        """
         e = self.engine
         if not e:
             return ""
@@ -373,27 +368,6 @@ class AnalysisData:
                     "threads": analyzer.threads, "hash_mb": analyzer.hash_mb},
         ).name_opening()
 
-    def save_to_json(self, output_path: Path):
-        """Save analysis to JSON for reuse."""
-        data = {
-            "white": self.game_info.white,
-            "black": self.game_info.black,
-            "white_elo": self.game_info.white_elo,
-            "black_elo": self.game_info.black_elo,
-            "event": self.game_info.event,
-            "site": self.game_info.site,
-            "date": self.game_info.date,
-            "round_num": self.game_info.round,
-            "result": self.game_info.result,
-            "opening_name": self.game_info.opening,
-            "opening_eco": self.game_info.eco,
-            "moves": [asdict(m) for m in self.moves],
-            "white_stats": {"accuracy": self.white_accuracy},
-            "black_stats": {"accuracy": self.black_accuracy},
-        }
-        with open(output_path, 'w') as f:
-            json.dump(data, f, indent=2)
-
 
 # =============================================================================
 # Dynamic Panel Components
@@ -404,8 +378,6 @@ RATING_SYMBOLS = {
     "blunder":    "??",
     "mistake":    "?",
     "inaccuracy": "?!",
-    "brilliant":  "!!",
-    "great":      "!",
 }
 
 
@@ -686,10 +658,10 @@ class AnalysisPanel:
 
     def __init__(self):
         self.content_group = VGroup()
-        bg = get_panel_rect(COMMENTARY_TOP_Y, COMMENTARY_BOTTOM_Y)
+        bg = get_panel_rect(ANALYSIS_TOP_Y, ANALYSIS_BOTTOM_Y)
         title = Text("Analysis", font=FONTS.heading_font, weight=FONTS.weight,
                      font_size=FONTS.subtitle_size, color=COLORS.text_secondary)
-        title.move_to([PANEL_CENTER_X, COMMENTARY_TOP_Y - 0.25, 0])
+        title.move_to([PANEL_CENTER_X, ANALYSIS_TOP_Y - 0.25, 0])
         self.panel_group = VGroup(bg, title, self.content_group)
 
     def get_mobject(self) -> VGroup:
@@ -697,7 +669,7 @@ class AnalysisPanel:
 
     @classmethod
     def max_lines(cls) -> int:
-        usable = (COMMENTARY_TOP_Y - COMMENTARY_BOTTOM_Y
+        usable = (ANALYSIS_TOP_Y - ANALYSIS_BOTTOM_Y
                   - cls.TITLE_HEIGHT - cls.BOTTOM_MARGIN)
         return int(usable / cls.LINE_HEIGHT)
 
@@ -762,7 +734,7 @@ class AnalysisPanel:
 
     def update(self, move: MoveData) -> Optional[Animation]:
         """Show this move's analysis and return the transition."""
-        content_top = COMMENTARY_TOP_Y - self.TITLE_HEIGHT
+        content_top = ANALYSIS_TOP_Y - self.TITLE_HEIGHT
         max_lines = self.max_lines()
         items: List[Mobject] = []
 
@@ -1030,8 +1002,9 @@ class AnimatedGame(Scene):
         Build the opening title card as a VGroup of Text objects.
 
         Displays: event/site, date, White vs Black with Elos, opening name,
-        result, and an optional custom intro line from
-        self.custom_comments["intro"].
+        result, and an optional intro from self.custom_comments["intro"]
+        (the PGN's comment before the first move, or the notes file's
+        [INTRO] entry).
 
         Every text item is clamped to MAX_WIDTH so nothing bleeds horizontally.
         arrange(DOWN, buff=0.40) provides enough vertical breathing room to
@@ -1075,7 +1048,7 @@ class AnimatedGame(Scene):
         if result_str:
             items.append(_t(result_str, 18, COLORS.text_primary))
 
-        # ── Custom intro (from notes file [intro] key) ────────────────────────
+        # ── Intro (PGN comment before move 1, or notes file [INTRO]) ─────────
         if "intro" in self.custom_comments:
             items.append(_t(self.custom_comments["intro"], 14, COLORS.text_primary))
 
@@ -1093,9 +1066,10 @@ class AnimatedGame(Scene):
         """
         Build the closing end card as a VGroup of Text objects.
 
-        Shows: result, accuracy statistics, move counts by classification,
-        a customizable "conclusion" comment, and a credits block listing
-        Stockfish, Manim, manim-chess, and Claude.
+        Shows: result (the notes file's [RESULT] if given), players,
+        accuracy statistics, move counts by classification, the notes
+        file's [CONCLUSION], and a credits block listing the engine and
+        search settings, Manim, manim-chess, and Claude.
 
         Every text item is clamped to MAX_WIDTH so nothing bleeds horizontally.
         arrange(DOWN, buff=0.30) provides enough vertical breathing room to
@@ -1135,7 +1109,7 @@ class AnimatedGame(Scene):
         for m in analysis.moves:
             counts[m.classification] = counts.get(m.classification, 0) + 1
 
-        order = ["brilliant", "great", "best", "inaccuracy", "mistake", "blunder"]
+        order = ["best", "inaccuracy", "mistake", "blunder"]
         stat_parts = [f"{c.capitalize()}: {counts[c]}"
                       for c in order if c in counts]
         if stat_parts:
@@ -1200,17 +1174,14 @@ class AnimatedGame(Scene):
         comments     = CommentPanel(custom_comments=self.custom_comments)
         analysis_box = AnalysisPanel()
 
-        # ── 5. Optional metric panel ─────────────────────────────────────────
-        metric_panel = None
-        if METRICS_AVAILABLE:
-            metric_panel = MetricPlotPanel(analysis.moves)
+        # ── 5. Eval plot ─────────────────────────────────────────────────────
+        metric_panel = MetricPlotPanel(analysis.moves)
 
         # Add all persistent objects
         objects_to_add = [board, board_annotation.get_mobject(), eval_bar,
                           header_panel, move_list.get_mobject(),
-                          comments.get_mobject(), analysis_box.get_mobject()]
-        if metric_panel is not None:
-            objects_to_add.append(metric_panel.get_mobject())
+                          comments.get_mobject(), analysis_box.get_mobject(),
+                          metric_panel.get_mobject()]
         self.add(*objects_to_add)
 
         # ── 6. Animation loop ────────────────────────────────────────────────
@@ -1225,9 +1196,8 @@ class AnimatedGame(Scene):
                 move_list.add_move(move),
                 comments.update(move),
                 analysis_box.update(move),
+                metric_panel.advance_to_ply(idx),
             ]
-            if metric_panel is not None:
-                panel_anims.append(metric_panel.advance_to_move(idx))
             panel_anims = [a for a in panel_anims if a is not None]
 
             self.play(*panel_anims, run_time=0.4)
@@ -1349,4 +1319,5 @@ if __name__ == "__main__":
     print("Config JSON format:")
     print('  {"pgn_path": "game.pgn",')
     print('   "analysis_path": "game_analysis.json",')
-    print('   "comments_path": "game_notes.txt"}')
+    print('   "comments_path": "game_notes.txt",')
+    print('   "stockfish_path": null}')
