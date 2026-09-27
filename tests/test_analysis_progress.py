@@ -105,7 +105,7 @@ class AnalyzerCommandLineTest(unittest.TestCase):
     def test_engine_flags_are_passed_to_the_analyzer(self):
         engine_call, _ = self.run_main("--threads", "3", "--hash", "512",
                                        "--time-limit", "2.5", "--lines", "1")
-        self.assertEqual(engine_call.args[2], 2.5)
+        self.assertEqual(engine_call.args[1:3], (None, 2.5))
         self.assertEqual(engine_call.kwargs,
                          {"threads": 3, "hash_mb": 512, "lines": 1})
 
@@ -138,12 +138,12 @@ class AnalyzeGameProgressTest(unittest.TestCase):
 @unittest.skipUnless(STOCKFISH, "Stockfish not found on PATH")
 class TimeLimitTest(unittest.TestCase):
 
-    def search_limits(self, **kwargs):
+    def search_limits(self, depth=1, **kwargs):
         """The chess.engine.Limit of every Stockfish search for a short game."""
         from chess_game_analyzer import EnhancedGameAnalyzer
 
         limits = []
-        with EnhancedGameAnalyzer(STOCKFISH, depth=1, **kwargs) as analyzer:
+        with EnhancedGameAnalyzer(STOCKFISH, depth=depth, **kwargs) as analyzer:
             real_analyse = analyzer.engine.analyse
 
             def spy(board, limit, *args, **kw):
@@ -167,6 +167,11 @@ class TimeLimitTest(unittest.TestCase):
         self.assertTrue(limits)
         self.assertTrue(all(l.depth == 1 and l.time == 0.5 for l in limits))
 
+    def test_time_limit_alone_lets_the_search_go_deeper_than_the_default(self):
+        limits = self.search_limits(depth=None, time_limit=0.05)
+        self.assertTrue(limits)
+        self.assertTrue(all(l.depth is None and l.time == 0.05 for l in limits))
+
 
 class TimeLimitFlagTest(unittest.TestCase):
 
@@ -180,6 +185,8 @@ class TimeLimitFlagTest(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 run_animator.main()
         self.assertEqual(run.call_args.kwargs.get("time_limit"), 2.5)
+        # No --depth: the analyzer decides (time only, as a time limit is given)
+        self.assertIsNone(run.call_args.args[3])
 
 
 if __name__ == "__main__":

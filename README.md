@@ -96,7 +96,13 @@ When it finishes, it reports how deep the searches actually got:
 Depth reached (asked for 20): 20 before each move, 20 after it (3 lines). 1 thread, 256 MB hash.
 ```
 
-On a slow machine, `--time-limit` stops each Stockfish search after that many seconds even if `--depth` hasn't been reached, which keeps deep analysis to a predictable time. The depth is then a maximum: with `--depth 30 --time-limit 0.2`, a 4-core laptop reached only depth 13–18. The summary above and the per-move depth in the Analysis panel show what you actually got.
+`--time-limit` gives each Stockfish search a number of seconds instead of a depth. On its own, each search goes as deep as that time allows, so simple positions (often in the endgame) are searched far deeper than 20, and complicated ones less deep:
+
+```bash
+python run_animator.py sample_game --analyze --time-limit 10
+```
+
+With `--depth` as well, each search stops at whichever comes first, so the depth becomes a maximum. That keeps deep analysis to a predictable time on a slow machine: with `--depth 30 --time-limit 0.2`, a 4-core laptop reached only depth 13–18. The summary above and the per-move depth in the Analysis panel show what you actually got.
 
 ```bash
 python run_animator.py sample_game --analyze --depth 24 --time-limit 2
@@ -239,7 +245,7 @@ Stockfish searches each position once, for its best lines: 3 by default (MultiPV
 | `search_lines` | Lines that search returned (as many as `--lines`, or fewer when fewer moves are legal) |
 | `search_depth_after` | Depth reached by the search after the move |
 
-The file's `engine` section records the engine name, requested depth, time limit, lines, threads and hash size.
+The file's `engine` section records the engine name, requested depth (`null` for a search by time only), time limit, lines, threads and hash size.
 
 ### Opening names
 

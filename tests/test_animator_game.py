@@ -130,6 +130,13 @@ class EngineSummaryTest(unittest.TestCase):
                          "Stockfish 17.1 · depth 30 (reached 14–17) · 0.2s per position"
                          " · 3 lines · 7 threads")
 
+    def test_time_only_search_gives_the_depth_reached(self):
+        engine = {"name": "Stockfish 19", "depth": None, "lines": 3,
+                  "threads": 7, "hash_mb": 512, "time_limit": 10}
+        self.assertEqual(self.analysis(engine, [24, 0, 41]).engine_summary(),
+                         "Stockfish 19 · depth 24–41 · 10s per position"
+                         " · 3 lines · 7 threads")
+
     def test_empty_for_older_analysis_files(self):
         self.assertEqual(self.analysis({}, [0, 0]).engine_summary(), "")
 

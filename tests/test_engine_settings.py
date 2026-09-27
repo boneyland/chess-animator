@@ -19,8 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import chess.engine
 
-from chess_game_analyzer import (ANALYSIS_LINES, EnhancedGameAnalyzer,
-                                 EnhancedMoveAnalysis, default_threads)
+from chess_game_analyzer import (ANALYSIS_LINES, DEFAULT_DEPTH, EnhancedGameAnalyzer,
+                                 EnhancedMoveAnalysis, default_threads,
+                                 describe_search, search_depth)
 
 STOCKFISH = shutil.which("stockfish")
 SHORT_GAME = '[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 *\n'
@@ -93,6 +94,23 @@ class SearchDetailsTest(unittest.TestCase):
             self.assertEqual(m.best_line[0], m.best_move_san)
 
 
+class SearchDepthTest(unittest.TestCase):
+
+    def test_default_depth_without_a_time_limit(self):
+        self.assertEqual(search_depth(None, None), DEFAULT_DEPTH)
+
+    def test_time_limit_alone_searches_without_a_depth_cap(self):
+        self.assertIsNone(search_depth(None, 10))
+
+    def test_depth_given_with_a_time_limit_keeps_both(self):
+        self.assertEqual(search_depth(24, 2), 24)
+
+    def test_describes_each_kind_of_search(self):
+        self.assertEqual(describe_search(20, None), "depth 20")
+        self.assertEqual(describe_search(24, 2), "depth 24, max 2s per position")
+        self.assertEqual(describe_search(None, 10), "10s per position")
+
+
 class SearchSummaryTest(unittest.TestCase):
 
     def test_summarises_depth_reached_lines_and_settings(self):
@@ -108,6 +126,16 @@ class SearchSummaryTest(unittest.TestCase):
             "Depth reached (asked for 30): 14–18, average 16, before each move"
             ", 20–22, average 21, after it (3 lines). "
             "7 threads, 256 MB hash.")
+
+    def test_time_only_search_names_its_time(self):
+        from run_animator import format_search_summary
+
+        moves = [{"search_depth": 24, "search_depth_after": 31, "search_lines": 3}]
+        engine = {"depth": None, "time_limit": 10, "threads": 7, "hash_mb": 512, "lines": 3}
+        self.assertEqual(
+            format_search_summary(moves, engine),
+            "Depth reached (10s per position): 24 before each move, 31 after it "
+            "(3 lines). 7 threads, 512 MB hash.")
 
 
     def test_uniform_depth_and_one_thread_read_naturally(self):

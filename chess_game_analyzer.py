@@ -157,6 +157,29 @@ def default_threads() -> int:
     return max(1, (os.cpu_count() or 1) - 1)
 
 
+# Search depth when neither a depth nor a time limit is given
+DEFAULT_DEPTH = 20
+
+
+def search_depth(depth: Optional[int], time_limit: Optional[float]) -> Optional[int]:
+    """
+    The depth each search stops at: the one given, else none when there is a
+    time limit (the search goes as deep as the time allows), else DEFAULT_DEPTH.
+    A search with both stops at whichever comes first.
+    """
+    if depth is not None:
+        return depth
+    return None if time_limit else DEFAULT_DEPTH
+
+
+def describe_search(depth: Optional[int], time_limit: Optional[float]) -> str:
+    """e.g. "depth 20", "depth 24, max 2s per position", "10s per position"."""
+    if depth is None:
+        return f"{time_limit:g}s per position"
+    cap = f", max {time_limit:g}s per position" if time_limit else ""
+    return f"depth {depth}{cap}"
+
+
 def default_search_threads(time_limit: Optional[float]) -> int:
     """
     Stockfish threads for a search.  At a fixed depth, extra threads widen the
@@ -406,7 +429,8 @@ class EnhancedGameAnalysisResult:
     black_stats: Dict
 
     # Metadata
-    analysis_depth: int = 20
+    analysis_depth: Optional[int] = DEFAULT_DEPTH   # None: searched by time only
+    analysis_time_limit: Optional[float] = None      # seconds per position
     analysis_time: float = 0.0
     engine_version: str = "Stockfish"
 
@@ -418,18 +442,19 @@ class EnhancedGameAnalysisResult:
 
 class EnhancedGameAnalyzer:
     def __init__(self, stockfish_path: Optional[str] = None,
-                 depth: int = 20, time_limit: Optional[float] = None,
+                 depth: Optional[int] = None, time_limit: Optional[float] = None,
                  threads: Optional[int] = None,
                  hash_mb: Optional[int] = None,
                  lines: int = ANALYSIS_LINES):
         self.stockfish_path = find_stockfish(stockfish_path)
-        self.depth = depth
+        # None (only with a time limit): as deep as the time allows
+        self.depth = search_depth(depth, time_limit)
         self.threads = threads or default_search_threads(time_limit)
         self.hash_mb = hash_mb or DEFAULT_HASH_MB
         if lines < 1:
             raise ValueError(f"lines must be at least 1, got {lines}")
         self.lines = lines
-        # Seconds per search, on top of depth; None = no time cap
+        # Seconds per search, on top of any depth; None = no time cap
         self.time_limit = time_limit
         self.engine = None
         self.engine_version = "Unknown"
@@ -759,6 +784,7 @@ class EnhancedGameAnalyzer:
                 white_stats=self._calculate_player_stats(white_moves),
                 black_stats=self._calculate_player_stats(black_moves),
                 analysis_depth=self.depth,
+                analysis_time_limit=self.time_limit,
                 analysis_time=time.time() - start_time,
                 engine_version=self.engine_version
             )
@@ -1269,7 +1295,7 @@ class EnhancedLaTeXReportGenerator:
             r"\section{Analysis Information}",
             r"\begin{itemize}",
             rf"\item Engine: {esc(analysis.engine_version)}",
-            rf"\item Depth: {analysis.analysis_depth}",
+            rf"\item Search: {describe_search(analysis.analysis_depth, analysis.analysis_time_limit)}",
             rf"\item Analysis time: {analysis.analysis_time:.1f} seconds",
             r"\end{itemize}",
             r"",
@@ -1301,7 +1327,7 @@ def analyze_game_to_report(
     pgn_source: Union[str, io.StringIO],
     output_path: Optional[str] = None,
     stockfish_path: Optional[str] = None,
-    depth: int = 20,
+    depth: Optional[int] = None,
     time_limit: Optional[float] = None,
     include_diagrams: bool = True,
     top_n_swings: int = 2,
@@ -1317,8 +1343,8 @@ def analyze_game_to_report(
         pgn_source: Path to PGN file, or PGN string, or StringIO object
         output_path: Optional path to save LaTeX file (if None, returns result object)
         stockfish_path: Path to Stockfish executable (None: auto-detect)
-        depth: Analysis depth (default 20)
-        time_limit: Max seconds per position, on top of depth (default None: no cap)
+        depth: Analysis depth (None: see search_depth)
+        time_limit: Seconds per position (None: no limit)
         include_diagrams: Include chess board diagrams in report
         top_n_swings: Number of "biggest swing" positions to always include (default: 2)
         verbose: Print progress messages
@@ -1334,8 +1360,7 @@ def analyze_game_to_report(
         >>> analyze_game_to_report("game.pgn", output_path="analysis.tex")
     """
     if verbose:
-        cap = f", max {time_limit}s per position" if time_limit else ""
-        print(f"Starting analysis (depth={depth}{cap})...")
+        print(f"Starting analysis ({describe_search(search_depth(depth, time_limit), time_limit)})...")
 
     with EnhancedGameAnalyzer(stockfish_path, depth, time_limit, threads=threads,
                               hash_mb=hash_mb, lines=lines) as analyzer:
@@ -1380,7 +1405,7 @@ def analyze_games_to_book(
     book_title: str = "Chess Game Collection Analysis",
     author: str = None,
     stockfish_path: Optional[str] = None,
-    depth: int = 20,
+    depth: Optional[int] = None,
     time_limit: Optional[float] = None,
     include_diagrams: bool = True,
     top_n_swings: int = 2,
@@ -1398,8 +1423,8 @@ def analyze_games_to_book(
         book_title: Title for the book
         author: Author name (defaults to engine version)
         stockfish_path: Path to Stockfish executable (None: auto-detect)
-        depth: Analysis depth (default 20)
-        time_limit: Max seconds per position, on top of depth (default None: no cap)
+        depth: Analysis depth (None: see search_depth)
+        time_limit: Seconds per position (None: no limit)
         include_diagrams: Include chess board diagrams in report
         top_n_swings: Number of "biggest swing" positions per game (default: 2)
         verbose: Print progress messages
@@ -1420,8 +1445,8 @@ def analyze_games_to_book(
         >>> print(f"Analyzed {len(results)} games")
     """
     if verbose:
-        cap = f", max {time_limit}s per position" if time_limit else ""
-        print(f"Starting multi-game book analysis (depth={depth}{cap})...")
+        print("Starting multi-game book analysis "
+              f"({describe_search(search_depth(depth, time_limit), time_limit)})...")
 
     with EnhancedGameAnalyzer(stockfish_path, depth, time_limit, threads=threads,
                               hash_mb=hash_mb, lines=lines) as analyzer:
@@ -1500,11 +1525,14 @@ Examples:
     parser.add_argument("-s", "--stockfish", default=None,
                        help="Path to Stockfish executable (default: auto-detect "
                             "via STOCKFISH_PATH or PATH)")
-    parser.add_argument("-d", "--depth", type=int, default=20,
-                       help="Analysis depth (default: 20)")
+    parser.add_argument("-d", "--depth", type=int, default=None,
+                       help=f"Analysis depth (default: {DEFAULT_DEPTH}, or none with "
+                            "--time: each search then goes as deep as the time allows)")
     parser.add_argument("-t", "--time", "--time-limit", type=float, default=None,
                        dest="time", metavar="SECONDS",
-                       help="Max seconds per position, on top of --depth (default: no cap)")
+                       help="Seconds per position. Alone, the search goes as deep as "
+                            "this allows; with --depth, it stops at whichever comes "
+                            "first (default: no limit)")
     parser.add_argument("--lines", type=positive_int, default=ANALYSIS_LINES,
                        help=f"Lines (MultiPV) searched before each move (default: {ANALYSIS_LINES})")
     parser.add_argument("--threads", type=positive_int, default=None, metavar="N",

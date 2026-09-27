@@ -23,10 +23,12 @@ Options:
     --no-preview                               Don't open the video after render.
     --analyze   Run Stockfish analysis first, saving {game_id}_analysis.json,
                 then animate.  Requires chess_game_analyzer.py on the path.
-    --depth N   Stockfish search depth for --analyze  (default: 20)
+    --depth N   Stockfish search depth for --analyze  (default: 20, or
+                none with --time-limit)
     --time-limit SECONDS
-                Stop each search after this long even if depth N isn't
-                reached; speeds up slow machines (default: no limit)
+                Seconds per position.  Alone, each search goes as deep as
+                this allows; with --depth, it stops at whichever comes
+                first (default: no limit)
     --threads N CPU threads for Stockfish  (default: 1, or all cores but
                 one with --time-limit, where extra threads help)
     --hash MB   Stockfish hash table size  (default: 256)
@@ -48,6 +50,9 @@ Examples:
     # Deep analysis, but at most 2 seconds per position
     python run_animator.py sample_game --analyze --depth 24 --time-limit 2
 
+    # 10 seconds per position, as deep as that gets
+    python run_animator.py sample_game --analyze --time-limit 10
+
     # Render the QuickDemo scene (no game files needed)
     python run_animator.py --scene QuickDemo
 """
@@ -61,8 +66,9 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
 
-from chess_game_analyzer import (ANALYSIS_LINES, EnhancedGameAnalyzer, ProgressLine,
-                                 positive_int)
+from chess_game_analyzer import (ANALYSIS_LINES, DEFAULT_DEPTH, EnhancedGameAnalyzer,
+                                 ProgressLine, describe_search, positive_int,
+                                 search_depth)
 
 
 # ---------------------------------------------------------------------------
@@ -94,13 +100,15 @@ def format_search_summary(moves: list, engine: dict) -> str:
     before = spread(m["search_depth"] for m in moves)
     after = spread(m["search_depth_after"] for m in moves)
     threads = engine["threads"]
-    return (f"Depth reached (asked for {engine['depth']}): {before} before each "
+    asked = (f"asked for {engine['depth']}" if engine["depth"] is not None
+             else f"{engine['time_limit']:g}s per position")
+    return (f"Depth reached ({asked}): {before} before each "
             f"move, {after} after it ({engine['lines']} lines). "
             f"{threads} thread{'s' if threads != 1 else ''}, {engine['hash_mb']} MB hash.")
 
 
 def run_analysis(pgn_path: Path, output_path: Path,
-                 stockfish: Optional[str], depth: int,
+                 stockfish: Optional[str], depth: Optional[int],
                  time_limit: Optional[float] = None,
                  threads: Optional[int] = None,
                  hash_mb: Optional[int] = None,
@@ -112,8 +120,8 @@ def run_analysis(pgn_path: Path, output_path: Path,
     Deliberately does NOT import anything from animator_game so that
     manim / manim_chess are never touched during the analysis step.
     """
-    cap = f", max {time_limit:g}s per position" if time_limit else ""
-    print(f"Running Stockfish analysis (depth {depth}{cap}) on {pgn_path} …")
+    search = describe_search(search_depth(depth, time_limit), time_limit)
+    print(f"Running Stockfish analysis ({search}) on {pgn_path} …")
 
     progress = ProgressLine()
     try:
@@ -149,7 +157,7 @@ def run_analysis(pgn_path: Path, output_path: Path,
             "black_stats":  {"accuracy": result.black_stats.get("accuracy", 0.0)},
             "engine": {
                 "name":       analyzer.engine_version,
-                "depth":      depth,
+                "depth":      analyzer.depth,
                 "time_limit": time_limit,
                 "lines":      analyzer.lines,
                 "threads":    analyzer.threads,
@@ -199,13 +207,15 @@ def main():
         help="Run Stockfish analysis before animating.",
     )
     parser.add_argument(
-        "--depth", type=int, default=20,
-        help="Stockfish depth for --analyze (default: 20).",
+        "--depth", type=int, default=None,
+        help=f"Stockfish depth for --analyze (default: {DEFAULT_DEPTH}, or none "
+             "with --time-limit).",
     )
     parser.add_argument(
         "--time-limit", type=float, default=None, metavar="SECONDS",
-        help="Stop each Stockfish search after this many seconds, even if "
-             "--depth isn't reached yet (default: no limit).",
+        help="Seconds per Stockfish search. Alone, each search goes as deep as "
+             "this allows; with --depth, it stops at whichever comes first "
+             "(default: no limit).",
     )
     parser.add_argument(
         "--threads", type=positive_int, default=None, metavar="N",

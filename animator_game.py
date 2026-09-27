@@ -272,9 +272,14 @@ class AnalysisData:
             return ""
         parts = [e.get("name", "Stockfish")]
         reached = [m.search_depth for m in self.moves if m.search_depth]
-        depth = f"depth {e.get('depth')}"
-        if reached and (min(reached), max(reached)) != (e.get("depth"),) * 2:
-            depth += f" (reached {min(reached)}–{max(reached)})"
+        asked = e.get("depth")
+        if asked is None:   # searched by time only: give the depth reached
+            low, high = (min(reached), max(reached)) if reached else ("?", "?")
+            depth = f"depth {low}" if low == high else f"depth {low}–{high}"
+        else:
+            depth = f"depth {asked}"
+            if reached and (min(reached), max(reached)) != (asked,) * 2:
+                depth += f" (reached {min(reached)}–{max(reached)})"
         parts.append(depth)
         if e.get("time_limit"):
             parts.append(f"{e['time_limit']:g}s per position")
@@ -329,7 +334,7 @@ class AnalysisData:
     @classmethod
     def from_analyzer(cls, pgn_path: Path,
                       stockfish_path: Optional[str] = None,
-                      depth: int = 20,
+                      depth: Optional[int] = None,
                       time_limit: Optional[float] = None,
                       lines: Optional[int] = None,
                       threads: Optional[int] = None,
@@ -370,7 +375,7 @@ class AnalysisData:
             moves=moves,
             white_accuracy=result.white_stats.get("accuracy", 0.0),
             black_accuracy=result.black_stats.get("accuracy", 0.0),
-            engine={"name": analyzer.engine_version, "depth": depth,
+            engine={"name": analyzer.engine_version, "depth": analyzer.depth,
                     "time_limit": analyzer.time_limit, "lines": analyzer.lines,
                     "threads": analyzer.threads, "hash_mb": analyzer.hash_mb},
         ).name_opening()
