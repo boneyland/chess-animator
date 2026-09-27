@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import chess
 import chess.engine
 
-from chess_game_analyzer import EnhancedGameAnalyzer
+from chess_game_analyzer import EnhancedGameAnalyzer, MATE_DELAYED, mate_advice
 
 STOCKFISH = shutil.which("stockfish")
 
@@ -51,7 +51,14 @@ class EngineMoveRatingTest(unittest.TestCase):
 
     def test_other_move_with_the_same_evals_loses_the_difference(self):
         move, = self.analyse("1. d4", self.searches())
-        self.assertEqual((move.classification, move.eval_loss), ("good", 30))
+        self.assertEqual((move.classification, move.eval_loss), ("", 30))
+
+
+class MateRatingTest(unittest.TestCase):
+
+    def test_slower_mate_gets_advice_but_no_rating(self):
+        # White had mate in 2 (9980) and still mates, in 4 (9960)
+        self.assertEqual(mate_advice(9980, 9960, is_white_move=True), ("", MATE_DELAYED))
 
 
 if __name__ == "__main__":

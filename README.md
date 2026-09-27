@@ -213,17 +213,18 @@ Moves are judged by how much they drop the mover's **winning chances** (Lichess'
 | Classification | Rule |
 |---|---|
 | Best | Stockfish's own move, or < 5 cp lost |
-| Excellent | Win-chance drop < 0.04 |
-| Good | Win-chance drop < 0.10 |
+| *(no rating)* | Win-chance drop < 0.10 |
 | Inaccuracy | Win-chance drop < 0.20 |
 | Mistake | Win-chance drop < 0.30 |
 | Blunder | Win-chance drop ≥ 0.30 |
+
+As in Lichess and en-croissant, a move that is neither the engine's choice nor an inaccuracy gets no rating: the two searches behind a rating (before and after the move) differ by a few centipawns even for the engine's own move, so finer grades such as "excellent" or "good" would mostly measure that noise.
 
 Forced mates follow Lichess's rules, which override the table above:
 
 - **Checkmate is now unavoidable** (walked into a forced mate): blunder, or mistake / inaccuracy if the mover was already losing badly (below -7 / -10 pawns).
 - **Lost forced checkmate sequence** (had a forced mate, no longer does): blunder, or mistake / inaccuracy if still winning big (above +7 / +10 pawns).
-- **Not the best checkmate sequence** (still mates, but more slowly): excellent.
+- **Not the best checkmate sequence** (still mates, but more slowly): no rating, only the advice.
 
 The thresholds are constants near the top of `chess_game_analyzer.py` (`WIN_DROP_*`, `MATE_*`).
 

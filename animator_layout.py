@@ -185,8 +185,6 @@ class ColorScheme:
     brilliant:  str = "#0e7a76"       # Dark teal
     great:      str = "#2e5f8a"       # Dark blue
     best:       str = "#4a7a1e"       # Dark green
-    excellent:  str = "#3d6b10"       # Darker green
-    good:       str = "#4a6040"       # Muted dark green
     inaccuracy: str = "#a07800"       # Dark amber
     mistake:    str = "#b05010"       # Dark orange
     blunder:    str = "#8b1a1a"       # Dark red
@@ -312,8 +310,6 @@ def get_classification_color(classification: str) -> str:
         "brilliant":  COLORS.brilliant,
         "great":      COLORS.great,
         "best":       COLORS.best,
-        "excellent":  COLORS.excellent,
-        "good":       COLORS.good,
         "inaccuracy": COLORS.inaccuracy,
         "mistake":    COLORS.mistake,
         "blunder":    COLORS.blunder,

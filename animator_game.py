@@ -1137,8 +1137,7 @@ class AnimatedGame(Scene):
         for m in analysis.moves:
             counts[m.classification] = counts.get(m.classification, 0) + 1
 
-        order = ["brilliant", "great", "best", "excellent",
-                 "good", "inaccuracy", "mistake", "blunder"]
+        order = ["brilliant", "great", "best", "inaccuracy", "mistake", "blunder"]
         stat_parts = [f"{c.capitalize()}: {counts[c]}"
                       for c in order if c in counts]
         if stat_parts:
@@ -1298,20 +1297,20 @@ class QuickDemo(Scene):
             MoveData(1,  "e4",    "e2e4", True,   0,   30,   0, "best",    "e4",  False, False, []),
             MoveData(2,  "e5",    "e7e5", False,  30,   25,   5, "best",    "e5",  False, False, []),
             MoveData(3,  "Nf3",   "g1f3", True,   25,   35,   0, "best",    "Nf3", False, False, []),
-            MoveData(4,  "Nc6",   "b8c6", False,  35,   30,   5, "good",    "Nc6", False, False, []),
+            MoveData(4,  "Nc6",   "b8c6", False,  35,   30,   5, "",        "Nc6", False, False, []),
             MoveData(5,  "Bb5",   "f1b5", True,   30,   40,   0, "best",    "Bb5", False, False, []),
-            MoveData(6,  "a6",    "a7a6", False,  40,   35,   5, "good",    "a6",  False, False, []),
-            MoveData(7,  "Ba4",   "b5a4", True,   35,   40,   0, "good",    "Ba4", False, False, []),
+            MoveData(6,  "a6",    "a7a6", False,  40,   35,   5, "",        "a6",  False, False, []),
+            MoveData(7,  "Ba4",   "b5a4", True,   35,   40,   0, "best",    "Ba4", False, False, []),
             MoveData(8,  "Nf6",   "g8f6", False,  40,   35,   5, "best",    "Nf6", False, False, []),
             MoveData(9,  "O-O",   "e1g1", True,   35,   40,   0, "best",    "O-O", False, False, []),
-            MoveData(10, "Be7",   "f8e7", False,  40,   35,   5, "good",    "Be7", False, False, []),
-            MoveData(11, "Re1",   "f1e1", True,   35,   45,   0, "good",    "Re1", False, False, []),
-            MoveData(12, "b5",    "b7b5", False,  45,   40,   5, "good",    "b5",  False, False, []),
-            MoveData(13, "Bb3",   "a4b3", True,   40,   50,   0, "good",    "Bb3", False, False, []),
-            MoveData(14, "d6",    "d7d6", False,  50,   45,   5, "good",    "d6",  False, False, []),
-            MoveData(15, "c3",    "c2c3", True,   45,   55,   0, "good",    "c3",  False, False, []),
-            MoveData(16, "O-O",   "e8g8", False,  55,   50,   5, "good",    "O-O", False, False, []),
-            MoveData(17, "h3",    "h2h3", True,   50,   60,   0, "good",    "h3",  False, False, []),
+            MoveData(10, "Be7",   "f8e7", False,  40,   35,   5, "",        "Be7", False, False, []),
+            MoveData(11, "Re1",   "f1e1", True,   35,   45,   0, "best",    "Re1", False, False, []),
+            MoveData(12, "b5",    "b7b5", False,  45,   40,   5, "",        "b5",  False, False, []),
+            MoveData(13, "Bb3",   "a4b3", True,   40,   50,   0, "best",    "Bb3", False, False, []),
+            MoveData(14, "d6",    "d7d6", False,  50,   45,   5, "",        "d6",  False, False, []),
+            MoveData(15, "c3",    "c2c3", True,   45,   55,   0, "best",    "c3",  False, False, []),
+            MoveData(16, "O-O",   "e8g8", False,  55,   50,   5, "",        "O-O", False, False, []),
+            MoveData(17, "h3",    "h2h3", True,   50,   60,   0, "best",    "h3",  False, False, []),
             MoveData(18, "Na5",   "c6a5", False,  60,  180, 140, "blunder", "Nb8", False, False, []),
         ]
 

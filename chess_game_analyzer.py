@@ -6,8 +6,9 @@ Chess Game Analyzer
 Analyzes chess games with Stockfish and reports, for every move:
 
 - the evaluation before and after it, and the centipawns lost;
-- a rating (best, excellent, good, inaccuracy, mistake, blunder), judged
-  by the drop in the mover's winning chances using Lichess's thresholds;
+- a rating: best for the engine's move (or one as good), otherwise
+  inaccuracy, mistake or blunder judged by the drop in the mover's winning
+  chances using Lichess's thresholds, and no rating below them;
 - Lichess-style advice when a move creates, loses or delays a forced mate;
 - Stockfish's best line and playable alternatives (MultiPV);
 - the depth each search actually reached.
@@ -105,13 +106,12 @@ PIECE_VALUES = {
 }
 
 # Move classification by drop in winning chances (-1..+1, the mover's point of
-# view).  Inaccuracy / mistake / blunder use Lichess's thresholds; excellent and
-# good match Chess.com's 0.02 / 0.05 expected-points bands (half this scale).
+# view), with Lichess's thresholds: a smaller drop gets no rating, as in Lichess
+# and en-croissant.
 WIN_CHANCES_K = 0.00368208   # Lichess centipawn -> winning chances coefficient
-WIN_DROP_EXCELLENT = 0.04
-WIN_DROP_GOOD = 0.10
-WIN_DROP_INACCURACY = 0.20
-WIN_DROP_MISTAKE = 0.30
+WIN_DROP_INACCURACY = 0.10
+WIN_DROP_MISTAKE = 0.20
+WIN_DROP_BLUNDER = 0.30
 
 
 def winning_chances(eval_cp: float) -> float:
@@ -255,7 +255,7 @@ def mate_advice(best_eval: float, current_eval: float,
       - MATE_LOST (had a forced mate, no longer has): inaccuracy if still
         above +10 pawns, mistake above +7, otherwise blunder.
       - MATE_DELAYED (still mates, but more slowly than the best move):
-        Lichess gives no judgement; we call it excellent, as Chess.com does.
+        no rating (""), as Lichess gives no judgement.
     """
     sign = 1 if is_white_move else -1
     before, after = sign * best_eval, sign * current_eval
@@ -273,7 +273,7 @@ def mate_advice(best_eval: float, current_eval: float,
         return judgement, MATE_CREATED
     # The best move turns mate-in-N into mate-in-(N-1), one MATE_STEP_CP closer
     if had_mate and has_mate and after < before + MATE_STEP_CP:
-        return "excellent", MATE_DELAYED
+        return "", MATE_DELAYED
     return None, ""
 
 
@@ -583,7 +583,7 @@ class EnhancedGameAnalyzer:
                     # Black wants lower eval; if current > best, that's bad
                     raw_eval_loss = current_eval - best_eval_after
                 
-                # Clamp negative values (move was better than engine's "best" - can happen 
+                # Clamp negative values (move was better than engine's "best" - can happen
                 # due to search instability or horizon effects)
                 raw_eval_loss = max(0, raw_eval_loss)
 
@@ -619,7 +619,7 @@ class EnhancedGameAnalyzer:
                 mate_class, mate_adv, mate_line = None, "", ""
                 if move != best_move and not board.is_checkmate():
                     mate_class, mate_adv = mate_advice(best_eval, current_eval, is_white_move)
-                if mate_class:
+                if mate_class is not None:
                     classification = mate_class
                 if mate_adv in (MATE_LOST, MATE_DELAYED):
                     # Like Scid's missed-mate annotation, give the mate the mover had
@@ -849,17 +849,16 @@ class EnhancedGameAnalyzer:
         """
         Classifies a move.  best uses centipawn loss; the rest use
         win_drop, the drop in the mover's winning chances (see winning_chances),
-        so a pawn lost at +8 costs far less than a pawn lost at 0.
+        so a pawn lost at +8 costs far less than a pawn lost at 0.  Returns ""
+        (no rating) for a drop too small to be an inaccuracy.
         """
         if eval_loss < 5:
             return "best"
-        elif win_drop < WIN_DROP_EXCELLENT:
-            return "excellent"
-        elif win_drop < WIN_DROP_GOOD:
-            return "good"
         elif win_drop < WIN_DROP_INACCURACY:
-            return "inaccuracy"
+            return ""
         elif win_drop < WIN_DROP_MISTAKE:
+            return "inaccuracy"
+        elif win_drop < WIN_DROP_BLUNDER:
             return "mistake"
         else:
             return "blunder"
@@ -893,8 +892,6 @@ class EnhancedGameAnalyzer:
                 'accuracy': 0,
                 'avg_centipawn_loss': 0,
                 'best_moves': 0,
-                'excellent_moves': 0,
-                'good_moves': 0,
                 'inaccuracies': 0,
                 'mistakes': 0,
                 'blunders': 0
@@ -903,7 +900,7 @@ class EnhancedGameAnalyzer:
         avg_loss = sum(m.eval_loss for m in moves) / len(moves)
         accuracy = max(0, 100 * math.exp(-0.005 * avg_loss)) if avg_loss > 0 else 100.0
         
-        counts = {'best': 0, 'excellent': 0, 'good': 0, 'inaccuracy': 0, 'mistake': 0, 'blunder': 0}
+        counts = {'best': 0, 'inaccuracy': 0, 'mistake': 0, 'blunder': 0}
         for m in moves:
             if m.classification in counts: counts[m.classification] += 1
             
@@ -912,8 +909,6 @@ class EnhancedGameAnalyzer:
             'avg_centipawn_loss': avg_loss,
             'accuracy': accuracy,
             'best_moves': counts['best'],
-            'excellent_moves': counts['excellent'],
-            'good_moves': counts['good'],
             'inaccuracies': counts['inaccuracy'],
             'mistakes': counts['mistake'],
             'blunders': counts['blunder']
@@ -976,8 +971,6 @@ class EnhancedLaTeXReportGenerator:
             r"",
             r"% Custom colors",
             r"\definecolor{brilliantcolor}{RGB}{0, 150, 150}",
-            r"\definecolor{excellentcolor}{RGB}{0, 128, 0}",
-            r"\definecolor{goodcolor}{RGB}{64, 160, 64}",
             r"\definecolor{inaccuracycolor}{RGB}{200, 180, 0}",
             r"\definecolor{mistakecolor}{RGB}{220, 120, 0}",
             r"\definecolor{blundercolor}{RGB}{200, 0, 0}",
@@ -1107,8 +1100,7 @@ class EnhancedLaTeXReportGenerator:
             rf"\item Total moves: {analysis.white_stats['total_moves']}",
             rf"\item Accuracy: {analysis.white_stats['accuracy']:.1f}\%",
             rf"\item Average centipawn loss: {analysis.white_stats['avg_centipawn_loss']:.1f}",
-            rf"\item Best/Excellent moves: {analysis.white_stats['best_moves']} / {analysis.white_stats['excellent_moves']}",
-            rf"\item Good moves: {analysis.white_stats['good_moves']}",
+            rf"\item Best moves: {analysis.white_stats['best_moves']}",
             rf"\item Inaccuracies: {analysis.white_stats['inaccuracies']}",
             rf"\item Mistakes: {analysis.white_stats['mistakes']}",
             rf"\item Blunders: {analysis.white_stats['blunders']}",
@@ -1119,8 +1111,7 @@ class EnhancedLaTeXReportGenerator:
             rf"\item Total moves: {analysis.black_stats['total_moves']}",
             rf"\item Accuracy: {analysis.black_stats['accuracy']:.1f}\%",
             rf"\item Average centipawn loss: {analysis.black_stats['avg_centipawn_loss']:.1f}",
-            rf"\item Best/Excellent moves: {analysis.black_stats['best_moves']} / {analysis.black_stats['excellent_moves']}",
-            rf"\item Good moves: {analysis.black_stats['good_moves']}",
+            rf"\item Best moves: {analysis.black_stats['best_moves']}",
             rf"\item Inaccuracies: {analysis.black_stats['inaccuracies']}",
             rf"\item Mistakes: {analysis.black_stats['mistakes']}",
             rf"\item Blunders: {analysis.black_stats['blunders']}",

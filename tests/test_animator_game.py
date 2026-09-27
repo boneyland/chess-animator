@@ -52,8 +52,12 @@ class AnalysisPanelTest(unittest.TestCase):
         self.assertEqual(AnalysisPanel.headline(move),
                          ("Inaccuracy (38cp lost)", "Eval +0.21"))
 
+    def test_unrated_move_has_only_the_eval(self):
+        self.assertEqual(AnalysisPanel.headline(_move(21, "Bg5", "", "Be2")),
+                         ("", "Eval +0.21"))
+
     def test_non_best_move_shows_six_plies_of_the_best_line(self):
-        move = _move(21, "Bg5", "good", "Be2",
+        move = _move(21, "Bg5", "", "Be2",
                      ["Be2", "Nfd7", "O-O", "e5", "dxe5", "Qe8", "Bd2"])
         self.assertIn("Best line: 11.Be2 Nfd7 12.O-O e5 13.dxe5 Qe8",
                       " ".join(AnalysisPanel.body_lines(move)))
@@ -68,7 +72,7 @@ class AnalysisPanelTest(unittest.TestCase):
         self.assertEqual(AnalysisPanel.body_lines(move), [])
 
     def test_book_move_names_its_opening_before_the_best_line(self):
-        move = _move(3, "c4", "good", "d4", ["d4", "g6"],
+        move = _move(3, "c4", "", "d4", ["d4", "g6"],
                      book_opening="English Opening: Anglo-Indian Defense")
         self.assertEqual(AnalysisPanel.body_lines(move),
                          ["Book: English Opening: Anglo-Indian Defense",
@@ -79,13 +83,13 @@ class AnalysisPanelTest(unittest.TestCase):
         self.assertEqual(AnalysisPanel.body_lines(move), ["Best: 11.Be2"])
 
     def test_footer_reports_depth_and_lines_searched(self):
-        move = _move(21, "Bg5", "good", "Be2", ["Be2"], search_depth=18,
+        move = _move(21, "Bg5", "", "Be2", ["Be2"], search_depth=18,
                      search_depth_after=23, search_lines=3)
         self.assertEqual(AnalysisPanel.footer(move),
                          "Search depth 18 (3 lines), 23 after the move")
 
     def test_footer_is_empty_for_old_analysis_files(self):
-        self.assertEqual(AnalysisPanel.footer(_move(21, "Bg5", "good", "Be2")), "")
+        self.assertEqual(AnalysisPanel.footer(_move(21, "Bg5", "", "Be2")), "")
 
 
 class CommentPanelTest(unittest.TestCase):
@@ -183,7 +187,7 @@ class MoveDataFieldsTest(unittest.TestCase):
     def test_search_details_and_best_line_are_read_from_json(self):
         d = {"ply": 21, "move_san": "Bg5", "move_uci": "f4g5", "is_white_move": True,
              "eval_before": 0, "eval_after": 21, "eval_loss": 38,
-             "classification": "good", "best_move_san": "Be2",
+             "classification": "", "best_move_san": "Be2",
              "best_line": ["Be2", "Nfd7"], "search_depth": 18,
              "search_depth_after": 23, "search_lines": 3}
         m = MoveData.from_dict(d)
