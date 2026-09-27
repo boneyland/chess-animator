@@ -22,13 +22,14 @@ Each frame is laid out like this:
 └──────────────────────────────────────────────────────────────┘
 ```
 
+- **Board:** the last move's mark (`!!`, `!`, `!?`, `?!`, `?`, `??`) shown the way [en-croissant](https://github.com/franciscoBSalgueiro/en-croissant) shows it: the move's two squares are tinted in the mark's colour, and a round badge with the symbol sits on the destination square's corner.
 - **Eval bar:** Stockfish's evaluation, shown as a number, as `M3` for a forced mate, or as `1-0` / `0-1` at checkmate. The fill uses Lichess's win-probability curve, so a big advantage fills most of the bar but only a forced mate fills all of it.
-- **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by quality: greens for good moves, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
+- **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by its rating: green for Stockfish's best move, black for a move with no rating, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
 - **Commentary:** your own notes for the current move, from the PGN or a notes file, beside the move list.
 - **Analysis:** the opening while the move is still in book (see [Opening names](#opening-names)), then Stockfish's view of every move: its rating and the centipawns lost, the evaluation, the best line (up to 6 plies) whenever the move played wasn't rated best, Lichess-style advice when a forced mate appears or is missed, and how deep the search went.
-- **Eval plot:** Stockfish's evaluation as White's win chance from -1 to +1, starting from the starting position and extending by one point per move across the full width of the frame. Green while White is better, red while Black is; a line that crosses zero changes colour where it crosses.
+- **Eval plot:** Stockfish's evaluation as White's win chance from -1 to +1, starting from the starting position and extending by one point per ply across the full width of the frame. Green while White is better, red while Black is; a line that crosses zero changes colour where it crosses.
 
-Each move stays on screen for about 1.6 seconds. A move with a comment stays longer, long enough to read it at about 15 characters a second.
+Each ply (one side's move) stays on screen for about 1.6 seconds. A ply with a comment stays longer, long enough to read it at about 15 characters a second.
 
 The end card lists the engine and search settings used, e.g. `Stockfish 19 · depth 14–245 · 4s per position · 1 line · 7 threads` (the range is the depth the searches reached).
 
@@ -67,6 +68,8 @@ Manim also needs a few system libraries (such as Cairo, Pango and FFmpeg); see [
 | `animator_metrics.py` | The Eval plot along the bottom of the frame. |
 | `chess_game_analyzer.py` | Stockfish wrapper: per-move evals, ratings, best lines and mate advice; also writes LaTeX reports. |
 | `chess_openings.py` | Names the opening and marks book moves, from the Lichess opening data in `openings/`. |
+| `openings/` | Lichess's opening data (`a.tsv` to `e.tsv`). |
+| `upstream_fixes.py` | Patches for bugs in manim and manim-chess, applied when the scenes import it; each is reported upstream. |
 | `convert_script_to_comment_dict.py` | Reads commentary from a `[KEY]` notes file and from PGN comments and move marks. |
 | `sample_game.pgn` | The annotated example game used throughout this README. |
 | `tests/` | Unit tests (see [Testing Without a Game File](#testing-without-a-game-file)). |
@@ -84,10 +87,10 @@ The repository includes `sample_game.pgn`: Donald Byrne vs. Bobby Fischer, New Y
 python run_animator.py sample_game --analyze
 ```
 
-This gives Stockfish 4 seconds for each position, saves `sample_game_analysis.json`, then renders a 720p video (the analysis took 4 minutes 50 seconds for the sample game's 82 moves on a 4-core laptop). The `--analyze` flag is only needed the first time; subsequent renders reuse the saved JSON. While the analysis runs, a progress line shows how many moves are done and an estimate of the time left:
+This gives Stockfish 4 seconds for each position, saves `sample_game_analysis.json`, then renders a 720p video (the analysis took 4 minutes 50 seconds for the sample game's 82 plies on a 4-core laptop). The `--analyze` flag is only needed the first time; subsequent renders reuse the saved JSON. While the analysis runs, a progress line shows how many moves are done and an estimate of the time left:
 
 ```
-Analyzing move 23/82 (28%) · 1:12 elapsed · ~3:05 left
+Analyzing ply 23/82 (28%) · 1:12 elapsed · ~3:05 left
 ```
 
 When it finishes, it reports how deep the searches actually got:
@@ -105,7 +108,7 @@ python run_animator.py sample_game --analyze --time-limit 10   # more time per p
 python run_animator.py sample_game --analyze --depth 20        # the same result on every run
 ```
 
-A search for a set time can come out slightly differently on each run (on the sample game, two runs gave different ratings for 9 of 82 moves, mostly moves near a rating threshold), and on a slower machine it gets less deep. A depth alone, on 1 thread, gives the same analysis every time. With both `--depth` and `--time-limit`, each search stops at whichever comes first. The summary above and the per-move depth in the Analysis panel show what you actually got.
+A search for a set time can come out slightly differently on each run (on the sample game, two runs gave different ratings for 9 of 82 plies, mostly moves near a rating threshold), and on a slower machine it gets less deep. A depth alone, on 1 thread, gives the same analysis every time. With both `--depth` and `--time-limit`, each search stops at whichever comes first. The summary above and the per-move depth in the Analysis panel show what you actually got.
 
 Why 4 seconds and 1 line: compared with 30-second searches of 16 positions from the sample game, 4 s per position had a mean eval error of 40–46 cp, depth 20 with 3 lines (the previous default) 101 cp, and depth 26 with 1 line 80 cp, which also took longer (7 minutes).
 
@@ -174,7 +177,7 @@ There are two ways to add commentary, and you can use both.
 
 ### In the PGN
 
-Comments in curly braces after a move are shown in the commentary panel when that move is played. A comment before the first move is shown on the title card. Move marks (`!`, `?`, `!!`, `??`, `!?`, `?!`) replace the engine's symbol for that move in the move list:
+Comments in curly braces after a move are shown in the commentary panel when that move is played. A comment before the first move is shown on the title card. Move marks (`!`, `?`, `!!`, `??`, `!?`, `?!`) replace the engine's symbol for that move in the move list and on the board:
 
 ```
 {Fischer, aged 13, against one of America's leading masters.}
@@ -185,7 +188,7 @@ Only the main line is read; side variations are ignored. Clock and eval tags fro
 
 ### In a notes file
 
-Create a plain text file named `{game_id}_notes.txt` next to the PGN, e.g. `sample_game_notes.txt`. Each entry is a ply number in square brackets, where ply 1 is White's first move, ply 2 is Black's first move, and so on, followed by your comment. Three other keys are recognised: `[INTRO]` is shown on the title card, and `[RESULT]` and `[CONCLUSION]` on the end card.
+Create a plain text file named `{game_id}_notes.txt` next to the PGN, e.g. `sample_game_notes.txt`. Each entry is a ply number in square brackets, where ply 1 is White's first move, ply 2 is Black's first move, and so on, followed by your comment. Three other keys are recognised: `[INTRO]` is shown on the title card, and `[RESULT]` and `[CONCLUSION]` on the end card. A comment runs until the next `[`, so it can't contain square brackets itself.
 
 ```
 [INTRO]
@@ -201,7 +204,7 @@ A 13-year-old's masterpiece.
 
 If the notes file and the PGN both have a comment for the same move, the notes file wins.
 
-Comments appear in the Commentary column beside the move list, word-wrapped to fit its 7 lines of about 44 characters. A comment that wraps to more lines is cut off, and the render prints a warning naming the move. The video holds a commented move long enough to read it.
+Comments appear in the Commentary column beside the move list, word-wrapped to fit its 7 lines of about 44 characters. A comment that wraps to more lines is cut off, and the render prints a warning naming the ply. The video holds a commented move long enough to read it.
 
 Stockfish's analysis has its own panel, so it is shown for every move whether or not you've commented on it. Moves that create, lose, or delay a forced mate get Lichess-style mate advice there, with the mating line the mover had, e.g. `Lost forced checkmate sequence. Mate in 2: Kg6 Kg8 Qb8#`.
 
@@ -233,7 +236,7 @@ Forced mates follow Lichess's rules, which override the table above:
 - **Lost forced checkmate sequence** (had a forced mate, no longer does): blunder, or mistake / inaccuracy if still winning big (above +7 / +10 pawns).
 - **Not the best checkmate sequence** (still mates, but more slowly): no rating, only the advice.
 
-The thresholds are constants near the top of `chess_game_analyzer.py` (`WIN_DROP_*`, `MATE_*`).
+The thresholds are constants near the top of `chess_game_analyzer.py` (`BEST_MAX_LOSS_CP`, `WIN_DROP_*`, `MATE_INACCURACY_CP`, `MATE_MISTAKE_CP`).
 
 ### Best lines and search depth
 
@@ -307,7 +310,7 @@ A larger `k` fills the bar faster. The Eval plot and move classification share a
 
 ### Colors and fonts
 
-All colors and font sizes are in `animator_layout.py` — `ColorScheme` and `Typography` dataclasses at the top of the file.
+All colors and font sizes are in `animator_layout.py`: the `ColorScheme` and `Typography` dataclasses, and `ANNOTATION_COLORS` for the move marks on the board.
 
 ---
 
@@ -327,7 +330,7 @@ sample_game_notes.txt              (optional, hand-written commentary)
 run_animator.py
     ├── writes sample_game_animator_config.json
     ├── sets CHESS_ANIMATOR_CONFIG environment variable
-    └── calls: manim -pql animator_game.py AnimatedGame
+    └── calls: manim -pqm animator_game.py AnimatedGame
 
 AnimatedGame.construct()
     ├── loads analysis JSON  →  List[MoveData]
@@ -335,11 +338,11 @@ AnimatedGame.construct()
     ├── reads headers, comments and move marks from the PGN,
     │   then the notes file (which wins for the same move)
     ├── builds board, eval bar, header, move list, commentary, analysis, eval plot
-    └── for each move:
-            move the piece
+    └── for each ply:
+            move the piece and mark it on the board
             update eval bar, move list, commentary and analysis together
-            hold longer if the move has a comment
-            extend the eval plot by one move
+            extend the eval plot by one point
+            hold longer if the ply has a comment
 ```
 
 ---

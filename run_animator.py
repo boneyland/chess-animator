@@ -23,12 +23,13 @@ from chess_game_analyzer import (VIDEO_LINES, VIDEO_TIME_LIMIT, EnhancedGameAnal
 
 HELP_EPILOG = """\
 Files, for a game_id:
-    {game_id}.pgn             — required for live analysis fallback
-    {game_id}_analysis.json   — pre-computed analysis (preferred)
-    {game_id}_notes.txt       — optional human commentary
+    {game_id}.pgn             — the game: moves for --analyze, headers,
+                                commentary and move marks for the video
+    {game_id}_analysis.json   — Stockfish's analysis, written by --analyze
+    {game_id}_notes.txt       — optional commentary (see the README)
 
-    If none of those files exist the script exits with a clear error rather
-    than letting Manim fail cryptically.
+    With neither the PGN nor the analysis the script exits with an error.
+    With a PGN but no analysis, the video analyzes it live, which is slow.
 
 Examples:
     # 720p render (default quality)

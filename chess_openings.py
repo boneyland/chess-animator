@@ -38,8 +38,8 @@ class OpeningBook:
 
         A position that isn't named takes the name of the last named position
         before it on its line, so a game that reaches it by another move order
-        still gets it.  When it's on several lines, the name nearest the end
-        of its line wins (the deepest), and between equally deep names, the
+        still gets it.  When it's on several lines, the deepest of those names
+        wins (the one closest to it), and between equally deep names, the
         first in the data.
         """
         lines: List[List[str]] = []
