@@ -24,19 +24,19 @@ class FormatProgressTest(unittest.TestCase):
 
     def test_shows_count_percent_elapsed_and_time_left(self):
         self.assertEqual(format_progress(23, 82, 72),
-                         "Analyzing move 23/82 (28%) · 1:12 elapsed · ~3:05 left")
+                         "Analyzing ply 23/82 (28%) · 1:12 elapsed · ~3:05 left")
 
-    def test_no_estimate_before_the_first_move_is_done(self):
+    def test_no_estimate_before_the_first_ply_is_done(self):
         self.assertEqual(format_progress(0, 82, 3),
-                         "Analyzing move 0/82 (0%) · 0:03 elapsed")
+                         "Analyzing ply 0/82 (0%) · 0:03 elapsed")
 
-    def test_no_estimate_once_every_move_is_done(self):
+    def test_no_estimate_once_every_ply_is_done(self):
         self.assertEqual(format_progress(82, 82, 250),
-                         "Analyzing move 82/82 (100%) · 4:10 elapsed")
+                         "Analyzing ply 82/82 (100%) · 4:10 elapsed")
 
     def test_hours_are_shown_for_long_runs(self):
         self.assertEqual(format_progress(10, 40, 3725),
-                         "Analyzing move 10/40 (25%) · 1:02:05 elapsed · ~3:06:15 left")
+                         "Analyzing ply 10/40 (25%) · 1:02:05 elapsed · ~3:06:15 left")
 
 
 class FakeTerminal(io.StringIO):
@@ -59,9 +59,9 @@ class ProgressLineTest(unittest.TestCase):
     def test_piped_output_gets_one_plain_line_per_call(self):
         out = self.run_progress(io.StringIO(), [(0, 2), (1, 2), (2, 2)], [0, 0, 5, 10])
         self.assertEqual(out.splitlines(), [
-            "Analyzing move 0/2 (0%) · 0:00 elapsed",
-            "Analyzing move 1/2 (50%) · 0:05 elapsed · ~0:05 left",
-            "Analyzing move 2/2 (100%) · 0:10 elapsed",
+            "Analyzing ply 0/2 (0%) · 0:00 elapsed",
+            "Analyzing ply 1/2 (50%) · 0:05 elapsed · ~0:05 left",
+            "Analyzing ply 2/2 (100%) · 0:10 elapsed",
         ])
 
     def test_terminal_output_redraws_one_line_and_ends_it_when_done(self):
@@ -70,18 +70,18 @@ class ProgressLineTest(unittest.TestCase):
         self.assertTrue(out.endswith("\n"))
         # Padded with spaces over the longer line it redraws
         self.assertEqual(out.split("\r")[-1].rstrip(),
-                         "Analyzing move 2/2 (100%) · 0:10 elapsed")
+                         "Analyzing ply 2/2 (100%) · 0:10 elapsed")
 
     def test_finish_ends_a_line_left_open_by_an_interrupted_analysis(self):
         out = self.run_progress(FakeTerminal(), [(0, 2), (1, 2)], [0, 0, 5])
         self.assertTrue(out.endswith("~0:05 left\n"))
 
     def test_clock_restarts_for_each_game(self):
-        # Second game starts at t=100; its first move is done at t=103
+        # Second game starts at t=100; its first ply is done at t=103
         out = self.run_progress(io.StringIO(), [(0, 1), (1, 1), (0, 2), (1, 2)],
                                 [0, 0, 7, 100, 103])
         self.assertEqual(out.splitlines()[-1],
-                         "Analyzing move 1/2 (50%) · 0:03 elapsed · ~0:03 left")
+                         "Analyzing ply 1/2 (50%) · 0:03 elapsed · ~0:03 left")
 
 
 class AnalyzerCommandLineTest(unittest.TestCase):
@@ -125,7 +125,7 @@ class AnalyzerCommandLineTest(unittest.TestCase):
 @unittest.skipUnless(STOCKFISH, "Stockfish not found on PATH")
 class AnalyzeGameProgressTest(unittest.TestCase):
 
-    def test_progress_is_reported_before_and_after_each_move(self):
+    def test_progress_is_reported_before_and_after_each_ply(self):
         from chess_game_analyzer import EnhancedGameAnalyzer
 
         calls = []

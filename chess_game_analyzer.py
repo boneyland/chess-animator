@@ -15,8 +15,8 @@ Analyzes chess games with Stockfish and reports, for every move:
 
 It also detects sacrifices and critical positions, and computes each player's
 accuracy.  Evaluations and ratings come from Stockfish, with one board-based
-exception: a sacrifice is a move that gives up material (by piece values)
-without losing evaluation.
+exception: a sacrifice is a move that gives up at least 250 cp of material
+(by piece values) while losing at most 30 cp of evaluation.
 
 Used as a library by run_animator.py (for the video), or on its own to write a
 LaTeX report of a game, or a LaTeX book of every game in a PGN:
@@ -107,8 +107,9 @@ PIECE_VALUES = {
 
 # Move classification by drop in winning chances (-1..+1, the mover's point of
 # view), with Lichess's thresholds: a smaller drop gets no rating, as in Lichess
-# and en-croissant.
+# and en-croissant.  A move losing less than BEST_MAX_LOSS_CP is rated best.
 WIN_CHANCES_K = 0.00368208   # Lichess centipawn -> winning chances coefficient
+BEST_MAX_LOSS_CP = 5
 WIN_DROP_INACCURACY = 0.10
 WIN_DROP_MISTAKE = 0.20
 WIN_DROP_BLUNDER = 0.30
@@ -225,7 +226,7 @@ def _format_duration(seconds: float) -> str:
 def format_progress(done: int, total: int, elapsed: float) -> str:
     """One-line analysis progress, with a time estimate while moves remain."""
     pct = done * 100 // total if total else 100
-    line = f"Analyzing move {done}/{total} ({pct}%) · {_format_duration(elapsed)} elapsed"
+    line = f"Analyzing ply {done}/{total} ({pct}%) · {_format_duration(elapsed)} elapsed"
     if 0 < done < total:
         line += f" · ~{_format_duration(elapsed / done * (total - done))} left"
     return line
@@ -276,6 +277,12 @@ MATE_SCORE_CP = 10000
 MATE_STEP_CP = 10
 MATE_BAND_CP = 1000
 
+# Lichess's grading of a mate created or lost: an inaccuracy when the mover
+# is still beyond MATE_INACCURACY_CP (winning a lost mate, or already losing
+# before walking into one), a mistake beyond MATE_MISTAKE_CP, else a blunder
+MATE_INACCURACY_CP = 999
+MATE_MISTAKE_CP = 700
+
 # Lichess's descriptions for moves that change a forced mate
 MATE_CREATED = "Checkmate is now unavoidable"
 MATE_LOST = "Lost forced checkmate sequence"
@@ -296,9 +303,11 @@ def mate_advice(best_eval: float, current_eval: float,
     Returns (classification, advice).  classification replaces the
     centipawn-based one when it is not None:
       - MATE_CREATED (walked into a forced mate): inaccuracy if the mover was
-        already below -10 pawns, mistake below -7, otherwise blunder.
+        already below -MATE_INACCURACY_CP (-10 pawns), mistake below
+        -MATE_MISTAKE_CP (-7), otherwise blunder.
       - MATE_LOST (had a forced mate, no longer has): inaccuracy if still
-        above +10 pawns, mistake above +7, otherwise blunder.
+        above +MATE_INACCURACY_CP, mistake above +MATE_MISTAKE_CP, otherwise
+        blunder.
       - MATE_DELAYED (still mates, but more slowly than the best move):
         no rating (""), as Lichess gives no judgement.
     """
@@ -309,12 +318,12 @@ def mate_advice(best_eval: float, current_eval: float,
     was_mated, is_mated = before <= -mate_zone, after <= -mate_zone
 
     if had_mate and not has_mate:
-        judgement = ("inaccuracy" if after > 999 else
-                     "mistake" if after > 700 else "blunder")
+        judgement = ("inaccuracy" if after > MATE_INACCURACY_CP else
+                     "mistake" if after > MATE_MISTAKE_CP else "blunder")
         return judgement, MATE_LOST
     if is_mated and not (had_mate or was_mated):
-        judgement = ("inaccuracy" if before < -999 else
-                     "mistake" if before < -700 else "blunder")
+        judgement = ("inaccuracy" if before < -MATE_INACCURACY_CP else
+                     "mistake" if before < -MATE_MISTAKE_CP else "blunder")
         return judgement, MATE_CREATED
     # The best move turns mate-in-N into mate-in-(N-1), one MATE_STEP_CP closer
     if had_mate and has_mate and after < before + MATE_STEP_CP:
@@ -384,10 +393,10 @@ class EnhancedMoveAnalysis:
     mate_line: str = ""
 
     # What the searches actually reached: depth of the search before the move
-    # and after it (each of ANALYSIS_LINES lines; the one after is also the
-    # next move's search before), and how many lines the search before the
-    # move returned.  With a time limit, depth can fall short of the
-    # requested depth.
+    # and after it (each of the analyzer's `lines` lines; the one after is also
+    # the next move's search before), and how many lines the search before the
+    # move returned.  With a time limit as well as a depth, the depth reached
+    # can fall short of the one requested.
     search_depth: int = 0
     search_depth_after: int = 0
     search_lines: int = 0
@@ -522,10 +531,10 @@ class EnhancedGameAnalyzer:
             pgn_source: PGN file path, PGN string, or StringIO object
             min_diagram_spacing: Minimum ply distance between critical position diagrams
             top_n_swings: Number of "biggest swing" positions to always include (default: 2)
-            progress: Optional callback, called as progress(moves_done, total_moves)
-                      before the first move and after each move is analyzed
+            progress: Optional callback, called as progress(plies_done, total_plies)
+                      before the first ply and after each ply is analyzed
         """
-        # --- 1. Fix NameError: Initialize PGN Source ---
+        # --- 1. Open the PGN source ---
         if isinstance(pgn_source, str):
             if '\n' in pgn_source or pgn_source.startswith('['):
                 pgn_io = io.StringIO(pgn_source)
@@ -551,9 +560,9 @@ class EnhancedGameAnalyzer:
             prev_material = self._calculate_material(board)
             last_diagram_ply = -100
             
-            total_moves = sum(1 for _ in game.mainline_moves())
+            total_plies = sum(1 for _ in game.mainline_moves())
             if progress:
-                progress(0, total_moves)
+                progress(0, total_plies)
 
             # Each position is searched once: the search after a move is also
             # the search before the next one
@@ -650,7 +659,7 @@ class EnhancedGameAnalyzer:
                     win_drop = -win_drop
                 classification = self._classify_move(eval_loss, max(0.0, win_drop))
                 
-                # D. Fix AssertionError: Safely generate PV SAN line using a temp board
+                # E. Stockfish's line after the move, in SAN (up to 3 plies)
                 temp_board = board.copy()
                 pv_san = []
                 for pv_move in info_after.get('pv', [])[:3]:
@@ -681,7 +690,7 @@ class EnhancedGameAnalyzer:
                     if 2 * mate_n - 1 > MATE_LINE_MAX_PLIES:
                         mate_line += " ..."
 
-                # E. Record Move Analysis
+                # F. Record Move Analysis
                 move_analysis = EnhancedMoveAnalysis(
                     ply=ply, move_san=played_san, move_uci=move.uci(),
                     is_white_move=is_white_move, eval_before=prev_eval, eval_after=current_eval,
@@ -699,7 +708,7 @@ class EnhancedGameAnalyzer:
                 )
                 moves_analysis.append(move_analysis)
                 
-                # F. Detect Brilliant Sacrifices
+                # G. Detect Brilliant Sacrifices
                 mat_diff = prev_material - current_material if is_white_move else current_material - prev_material
                 if mat_diff >= 250:
                     eval_diff = current_eval - prev_eval if is_white_move else prev_eval - current_eval
@@ -711,7 +720,7 @@ class EnhancedGameAnalyzer:
                             eval_improvement=max(0, eval_diff), is_sound=eval_diff >= 0
                         ))
 
-                # G. Detect Critical Positions (threshold-based)
+                # H. Detect Critical Positions (threshold-based)
                 eval_swing = abs(current_eval - prev_eval)
                 if eval_swing > 100 and ply - last_diagram_ply >= min_diagram_spacing:
                     critical_positions.append(CriticalPosition(
@@ -723,7 +732,7 @@ class EnhancedGameAnalyzer:
                     ))
                     last_diagram_ply = ply
                 
-                # H. Collect all eval swings for top-N selection (excluding already-added positions)
+                # I. Collect all eval swings for top-N selection (excluding already-added positions)
                 all_eval_swings.append({
                     'ply': ply,
                     'fen': board.fen(),
@@ -743,7 +752,7 @@ class EnhancedGameAnalyzer:
                 info_before_list = info_after_list
 
                 if progress:
-                    progress(len(moves_analysis), total_moves)
+                    progress(len(moves_analysis), total_plies)
 
             # --- 3. Add Top-N Biggest Swings ---
             # Get plies already in critical_positions
@@ -900,7 +909,7 @@ class EnhancedGameAnalyzer:
         so a pawn lost at +8 costs far less than a pawn lost at 0.  Returns ""
         (no rating) for a drop too small to be an inaccuracy.
         """
-        if eval_loss < 5:
+        if eval_loss < BEST_MAX_LOSS_CP:
             return "best"
         elif win_drop < WIN_DROP_INACCURACY:
             return ""
@@ -999,7 +1008,7 @@ class EnhancedLaTeXReportGenerator:
     
     @staticmethod
     def _preamble(document_class: str) -> List[str]:
-        """Packages and colours shared by the report and the book."""
+        """Packages shared by the report and the book."""
         return [
             rf"\documentclass[11pt]{{{document_class}}}",
             r"\usepackage[utf8]{inputenc}",
@@ -1016,12 +1025,6 @@ class EnhancedLaTeXReportGenerator:
             r"\usepackage{booktabs}",
             r"\usepackage{hyperref}",
             r"\usepackage{xcolor}",
-            r"",
-            r"% Custom colors",
-            r"\definecolor{brilliantcolor}{RGB}{0, 150, 150}",
-            r"\definecolor{inaccuracycolor}{RGB}{200, 180, 0}",
-            r"\definecolor{mistakecolor}{RGB}{220, 120, 0}",
-            r"\definecolor{blundercolor}{RGB}{200, 0, 0}",
             r"",
         ]
 

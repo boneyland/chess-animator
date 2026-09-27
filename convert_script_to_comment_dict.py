@@ -1,5 +1,13 @@
+"""
+convert_script_to_comment_dict.py
+
+Reads your commentary for the animator from two sources: the PGN's own
+comments and move marks (!, ?, !!, ??, !?, ?!), and a notes file of [KEY]
+entries.  Commentary is keyed by ply as a string ("1" = White's first move),
+plus "intro", "result" and "conclusion" for the title and end cards.
+"""
+
 import re
-import json
 import os
 
 import chess.pgn
@@ -60,10 +68,14 @@ def parse_pgn_annotations(pgn_path):
 
 def parse_comments_file(file_path):
     """
-    Parses a text file into a dictionary for the chess animator.
-    Format: [KEY] followed by the comment text.
+    Parses a notes file into {key: text} for the chess animator.
+
+    Format: [KEY] followed by the comment text, where KEY is a ply number
+    (1 = White's first move) or INTRO, RESULT or CONCLUSION.  Keys are
+    lowercased and whitespace in the text collapses to single spaces.  A
+    comment runs until the next "[", so comment text can't contain one.
     """
-    with open(file_path, 'r') as f:
+    with open(file_path, encoding="utf-8") as f:
         content = f.read()
 
     # Regex to find [KEY] and the text following it until the next [KEY]
