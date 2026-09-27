@@ -586,6 +586,11 @@ class EnhancedGameAnalyzer:
                 # Clamp negative values (move was better than engine's "best" - can happen 
                 # due to search instability or horizon effects)
                 raw_eval_loss = max(0, raw_eval_loss)
+
+                # The engine's own move loses nothing: any difference between the
+                # search before it and the search after is noise between two searches
+                if move == best_move:
+                    raw_eval_loss = 0
                 
                 # Cap eval_loss to avoid absurd values from mate score transitions
                 # When positions swing between "mate" and "no mate", raw differences
