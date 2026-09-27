@@ -188,7 +188,7 @@ Only the main line is read; side variations are ignored. Clock and eval tags fro
 
 ### In a notes file
 
-Create a plain text file named `{game_id}_notes.txt` next to the PGN, e.g. `sample_game_notes.txt`. Each entry is a ply number in square brackets, where ply 1 is White's first move, ply 2 is Black's first move, and so on, followed by your comment. Three other keys are recognised: `[INTRO]` is shown on the title card, and `[RESULT]` and `[CONCLUSION]` on the end card. A comment runs until the next `[`, so it can't contain square brackets itself.
+Create a plain text file named `{game_id}_notes.txt` next to the PGN, e.g. `sample_game_notes.txt`. Each entry is a ply number in square brackets, where ply 1 is White's first move, ply 2 is Black's first move, and so on, followed by your comment. Three other keys are recognised: `[INTRO]` is shown on the title card, and `[RESULT]` and `[CONCLUSION]` on the end card. Each key goes at the start of a line, and its comment runs until the next key, so a comment can span several lines and contain square brackets.
 
 ```
 [INTRO]

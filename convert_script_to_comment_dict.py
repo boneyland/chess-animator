@@ -66,33 +66,29 @@ def parse_pgn_annotations(pgn_path):
     return comments, marks
 
 
+# A notes-file key: [ply number], [INTRO], [RESULT] or [CONCLUSION] at the
+# start of a line (any case, optionally indented)
+_NOTES_KEY = re.compile(r'^[ \t]*\[(\d+|intro|result|conclusion)\]',
+                        re.IGNORECASE | re.MULTILINE)
+
+
 def parse_comments_file(file_path):
     """
     Parses a notes file into {key: text} for the chess animator.
 
-    Format: [KEY] followed by the comment text, where KEY is a ply number
-    (1 = White's first move) or INTRO, RESULT or CONCLUSION.  Keys are
-    lowercased and whitespace in the text collapses to single spaces.  A
-    comment runs until the next "[", so comment text can't contain one.
+    Format: [KEY] at the start of a line, followed by the comment text, where
+    KEY is a ply number (1 = White's first move) or INTRO, RESULT or
+    CONCLUSION.  A comment runs until the next key, so it may contain square
+    brackets and span several lines.  Keys are lowercased, whitespace in the
+    text collapses to single spaces, and text before the first key is ignored.
     """
     with open(file_path, encoding="utf-8") as f:
         content = f.read()
 
-    # Regex to find [KEY] and the text following it until the next [KEY]
-    pattern = r'\[(.*?)\]\s*(.*?)(?=\s*\[|$)'
-    matches = re.findall(pattern, content, re.DOTALL)
-
-    comments_dict = {}
-    for key, text in matches:
-        # Clean up the key and the text
-        clean_key = key.strip().lower()
-        clean_text = " ".join(text.split()) # Removes newlines/extra spaces
-        
-        # Store in dictionary
-        comments_dict[clean_key] = clean_text
-
-    return comments_dict
-
+    keys = list(_NOTES_KEY.finditer(content))
+    ends = [k.start() for k in keys[1:]] + [len(content)]
+    return {key.group(1).lower(): " ".join(content[key.end():end].split())
+            for key, end in zip(keys, ends)}
 
 def load_commentary(pgn_path=None, notes_path=None):
     """
