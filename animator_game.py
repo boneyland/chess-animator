@@ -19,15 +19,6 @@ Requirements:
     - manim, manim-chess, chess
     - chess_game_analyzer.py (for analysis)
     - Stockfish (if running live analysis)
-
-Changes from previous version:
-    - AnimatedGame reads config from CHESS_ANIMATOR_CONFIG env var (JSON file)
-      instead of the broken --user_args Manim CLI approach
-    - stockfish_path now passed through config JSON so --stockfish flag works
-    - Analyzer module renamed from chess_game_analyzer6y to chess_game_analyzer
-    - Animation loop accepts optional MetricPlotPanel (imported from
-      animator_metrics.py when available)
-    - Color scheme updated to light background with dark text and plot lines
 """
 
 import functools
@@ -1336,67 +1327,26 @@ class QuickDemo(Scene):
 
 
 # =============================================================================
-# Utility: Generate Analysis JSON
-# =============================================================================
-
-def generate_analysis_json(pgn_path: str, output_path: str = None,
-                           stockfish_path: Optional[str] = None,
-                           depth: Optional[int] = None):
-    """
-    Generate analysis JSON from a PGN using chess_game_analyzer.
-
-    Run this once; then use the JSON with AnimatedGame for fast iteration.
-
-    Usage:
-        python animator_game.py --analyze game.pgn
-        python animator_game.py --analyze game.pgn --depth 22
-    """
-    if output_path is None:
-        output_path = Path(pgn_path).stem + "_analysis.json"
-
-    print(f"Analyzing {pgn_path}…")
-    analysis = AnalysisData.from_analyzer(Path(pgn_path), stockfish_path, depth)
-    analysis.save_to_json(Path(output_path))
-    print(f"Analysis saved to {output_path}")
-    return output_path
-
-
-# =============================================================================
 # Command Line Interface
 # =============================================================================
 
 if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) > 1 and sys.argv[1] == "--analyze":
-        if len(sys.argv) < 3:
-            print("Usage: python animator_game.py --analyze game.pgn [--depth 20]")
-            sys.exit(1)
-
-        pgn_path = sys.argv[2]
-        depth = 20
-        if "--depth" in sys.argv:
-            depth = int(sys.argv[sys.argv.index("--depth") + 1])
-
-        generate_analysis_json(pgn_path, depth=depth)
-
-    else:
-        print("Chess Game Animator")
-        print("=" * 50)
-        print()
-        print("Scenes available:")
-        print("  AnimatedGame  — full game animation")
-        print("                  (needs CHESS_ANIMATOR_CONFIG env var)")
-        print("  QuickDemo     — self-contained demo, no files needed")
-        print()
-        print("Run via Manim:")
-        print("  manim -pql animator_game.py QuickDemo")
-        print("  CHESS_ANIMATOR_CONFIG=my_config.json manim -pql animator_game.py AnimatedGame")
-        print()
-        print("Generate analysis JSON from a PGN:")
-        print("  python animator_game.py --analyze game.pgn --depth 22")
-        print()
-        print("Config JSON format:")
-        print('  {"pgn_path": "game.pgn",')
-        print('   "analysis_path": "game_analysis.json",')
-        print('   "comments_path": "game_notes.txt"}')
+    print("Chess Game Animator")
+    print("=" * 50)
+    print()
+    print("Scenes available:")
+    print("  AnimatedGame  — full game animation")
+    print("                  (needs CHESS_ANIMATOR_CONFIG env var)")
+    print("  QuickDemo     — self-contained demo, no files needed")
+    print()
+    print("Run via Manim:")
+    print("  manim -pql animator_game.py QuickDemo")
+    print("  CHESS_ANIMATOR_CONFIG=my_config.json manim -pql animator_game.py AnimatedGame")
+    print()
+    print("Or analyze and render a game in one step:")
+    print("  python run_animator.py my_game --analyze")
+    print()
+    print("Config JSON format:")
+    print('  {"pgn_path": "game.pgn",')
+    print('   "analysis_path": "game_analysis.json",')
+    print('   "comments_path": "game_notes.txt"}')
