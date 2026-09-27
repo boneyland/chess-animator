@@ -126,13 +126,24 @@ PLAYABLE_THRESHOLD = 50
 # Default Stockfish lines (MultiPV) searched in each position: the best move,
 # plus alternatives to suggest.  Each extra line costs search time: at depth
 # 20, 3 lines took about 4.5x as long as 1.  Fewer lines lose the alternatives,
-# and the first line's eval gets less accurate too: a multi-line search is also
-# a more thorough one (on 16 sample positions, eval error vs a much deeper
-# search rose from 40 to 57 cp at depth 20 with 1 line instead of 3).
+# and at a fixed depth the first line's eval gets less accurate too: a
+# multi-line search is also a more thorough one (on 16 sample positions, eval
+# error vs a much deeper search rose from 40 to 57 cp at depth 20 with 1 line
+# instead of 3).  For a set time it's the other way round: see VIDEO_LINES.
 # Each position is searched once, for the move played from it and the move
 # that led to it; that was 7% faster on the sample game than an extra
 # one-line search after each move.
 ANALYSIS_LINES = 3
+
+# The video (run_animator.py) shows only the best line, so by default it
+# searches 1 line for a set time instead, on all cores but one.  MultiPV
+# weakens Stockfish's multi-threaded search badly (7 threads reached depth
+# 13-33 with 3 lines, 33-35 with 1), and on the sample game, against 30 s
+# searches, 4 s with 1 line on 7 threads had a mean eval error of 40-46 cp:
+# depth 20 with 3 lines had 101, depth 26 with 1 line 80.  A search for a set
+# time can give slightly different results on each run.
+VIDEO_LINES = 1
+VIDEO_TIME_LIMIT = 4.0
 
 # Stockfish transposition-table size in MB (Stockfish's own default is 16)
 DEFAULT_HASH_MB = 256
@@ -170,6 +181,17 @@ def search_depth(depth: Optional[int], time_limit: Optional[float]) -> Optional[
     if depth is not None:
         return depth
     return None if time_limit else DEFAULT_DEPTH
+
+
+def video_search(depth: Optional[int], time_limit: Optional[float]
+                 ) -> Tuple[Optional[int], Optional[float]]:
+    """
+    (depth, time limit) for the video's analysis: VIDEO_TIME_LIMIT when
+    neither is given; a depth given alone is searched without a time limit.
+    """
+    if depth is None and time_limit is None:
+        return None, VIDEO_TIME_LIMIT
+    return depth, time_limit
 
 
 def describe_search(depth: Optional[int], time_limit: Optional[float]) -> str:

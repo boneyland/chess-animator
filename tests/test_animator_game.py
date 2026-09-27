@@ -136,6 +136,8 @@ class EngineSummaryTest(unittest.TestCase):
         self.assertEqual(self.analysis(engine, [24, 0, 41]).engine_summary(),
                          "Stockfish 19 · depth 24–41 · 10s per position"
                          " · 3 lines · 7 threads")
+        engine["lines"] = 1
+        self.assertIn("· 1 line ·", self.analysis(engine, [24]).engine_summary())
 
     def test_empty_for_older_analysis_files(self):
         self.assertEqual(self.analysis({}, [0, 0]).engine_summary(), "")

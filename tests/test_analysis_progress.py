@@ -175,18 +175,26 @@ class TimeLimitTest(unittest.TestCase):
 
 class TimeLimitFlagTest(unittest.TestCase):
 
-    def test_time_limit_flag_is_passed_to_the_analysis(self):
+    def analysis_call(self, *flags):
+        """The run_analysis call run_animator.py makes for --analyze."""
         import run_animator
 
-        argv = ["run_animator.py", "sample_game", "--analyze", "--time-limit", "2.5"]
+        argv = ["run_animator.py", "sample_game", "--analyze", *flags]
         with mock.patch.object(sys, "argv", argv), \
              mock.patch.object(run_animator, "run_analysis", return_value=False) as run, \
              mock.patch("builtins.print"):
             with self.assertRaises(SystemExit):
                 run_animator.main()
-        self.assertEqual(run.call_args.kwargs.get("time_limit"), 2.5)
+        return run.call_args
+
+    def test_video_analysis_searches_one_line_by_default(self):
+        self.assertEqual(self.analysis_call().kwargs.get("lines"), 1)
+
+    def test_time_limit_flag_is_passed_to_the_analysis(self):
+        run = self.analysis_call("--time-limit", "2.5")
+        self.assertEqual(run.kwargs.get("time_limit"), 2.5)
         # No --depth: the analyzer decides (time only, as a time limit is given)
-        self.assertIsNone(run.call_args.args[3])
+        self.assertIsNone(run.args[3])
 
 
 if __name__ == "__main__":

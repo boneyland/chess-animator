@@ -30,7 +30,7 @@ Each frame is laid out like this:
 
 Each move stays on screen for about 1.6 seconds. A move with a comment stays longer, long enough to read it at about 15 characters a second.
 
-The end card lists the engine and search settings used, e.g. `Stockfish 19 · depth 20 · 3 lines · 1 thread`.
+The end card lists the engine and search settings used, e.g. `Stockfish 19 · depth 14–245 · 4s per position · 1 line · 7 threads` (the range is the depth the searches reached).
 
 ---
 
@@ -81,10 +81,10 @@ The repository includes `sample_game.pgn`: Donald Byrne vs. Bobby Fischer, New Y
 ### 1. Analyze and animate in one step
 
 ```bash
-python run_animator.py sample_game --analyze --depth 20
+python run_animator.py sample_game --analyze
 ```
 
-This runs Stockfish at depth 20, saves `sample_game_analysis.json`, then renders a 720p video. The `--analyze` flag is only needed the first time; subsequent renders reuse the saved JSON. While the analysis runs, a progress line shows how many moves are done and an estimate of the time left:
+This gives Stockfish 4 seconds for each position, saves `sample_game_analysis.json`, then renders a 720p video (the analysis took 4 minutes 50 seconds for the sample game's 82 moves on a 4-core laptop). The `--analyze` flag is only needed the first time; subsequent renders reuse the saved JSON. While the analysis runs, a progress line shows how many moves are done and an estimate of the time left:
 
 ```
 Analyzing move 23/82 (28%) · 1:12 elapsed · ~3:05 left
@@ -93,29 +93,30 @@ Analyzing move 23/82 (28%) · 1:12 elapsed · ~3:05 left
 When it finishes, it reports how deep the searches actually got:
 
 ```
-Depth reached (asked for 20): 20 before each move, 20 after it (3 lines). 1 thread, 256 MB hash.
+Depth reached (4s per position): 14–245, median 26, before each move, 14–245, median 26, after it (1 line). 7 threads, 256 MB hash.
 ```
 
-`--time-limit` gives each Stockfish search a number of seconds instead of a depth. On its own, each search goes as deep as that time allows, so simple positions (often in the endgame) are searched far deeper than 20, and complicated ones less deep:
+(245 is Stockfish's maximum depth, which it reports once it has found a forced mate.)
+
+Each search goes as deep as its time allows, so simple positions (often in the endgame) are searched far deeper than complicated ones. `--time-limit` changes the time; `--depth` searches to a set depth instead:
 
 ```bash
-python run_animator.py sample_game --analyze --time-limit 10
+python run_animator.py sample_game --analyze --time-limit 10   # more time per position
+python run_animator.py sample_game --analyze --depth 20        # the same result on every run
 ```
 
-With `--depth` as well, each search stops at whichever comes first, so the depth becomes a maximum. That keeps deep analysis to a predictable time on a slow machine: with `--depth 30 --time-limit 0.2`, a 4-core laptop reached only depth 13–18. The summary above and the per-move depth in the Analysis panel show what you actually got.
+A search for a set time can come out slightly differently on each run (on the sample game, two runs gave different ratings for 9 of 82 moves, mostly moves near a rating threshold), and on a slower machine it gets less deep. A depth alone, on 1 thread, gives the same analysis every time. With both `--depth` and `--time-limit`, each search stops at whichever comes first. The summary above and the per-move depth in the Analysis panel show what you actually got.
 
-```bash
-python run_animator.py sample_game --analyze --depth 24 --time-limit 2
-```
+Why 4 seconds and 1 line: compared with 30-second searches of 16 positions from the sample game, 4 s per position had a mean eval error of 40–46 cp, depth 20 with 3 lines (the previous default) 101 cp, and depth 26 with 1 line 80 cp, which also took longer (7 minutes).
 
 #### Threads and memory
 
 Stockfish gets a 256 MB hash table (its own default is 16 MB); change it with `--hash MB`. The number of CPU threads depends on the kind of search, and `--threads N` overrides it:
 
-- **Depth only (no `--time-limit`): 1 thread.** At a fixed depth, extra threads widen the search instead of reaching the depth sooner. On a 4-core Ryzen laptop, one depth-20 position took 1.7 s with 1 thread and 53 s with 7. One thread also gives the same result on every run.
-- **With `--time-limit`: all cores but one.** Here the time is fixed, and 7 threads searched about 3.7 times as many positions as 1 in the same time, which gives a stronger answer.
+- **With a time limit (the default): all cores but one.** Here the time is fixed, and 7 threads searched about 3.7 times as many positions as 1 in the same time, which gives a stronger answer.
+- **Depth only (`--depth` without `--time-limit`): 1 thread.** At a fixed depth, extra threads widen the search instead of reaching the depth sooner. On a 4-core Ryzen laptop, one depth-20 position took 1.7 s with 1 thread and 53 s with 7. One thread also gives the same result on every run.
 
-`--lines N` sets how many lines Stockfish searches before each move (default 3): the best move plus alternatives. `--lines 1` is several times faster, but it loses the alternative moves and its evals are somewhat less accurate, because a multi-line search is also a more thorough one.
+`--lines N` sets how many lines Stockfish searches in each position (default 1). The video only shows the best line, and extra lines weaken a multi-threaded search badly: in 5 seconds, 7 threads reached depth 33–35 with 1 line but only 13–33 with 3.
 
 ### 2. Re-render without re-analyzing
 
@@ -150,7 +151,7 @@ python run_animator.py sample_game --quality ultra --no-preview
 ### 4. Stockfish location
 
 ```bash
-python run_animator.py sample_game --analyze --depth 22 \
+python run_animator.py sample_game --analyze \
     --stockfish /opt/homebrew/bin/stockfish
 ```
 
@@ -161,8 +162,8 @@ By default Stockfish is found automatically in this order: the `STOCKFISH_PATH` 
 Replace `sample_game` with any base filename, optionally with a folder. The script looks for `{name}.pgn`, `{name}_analysis.json`, and optionally `{name}_notes.txt`:
 
 ```bash
-python run_animator.py my_game --analyze --depth 20
-python run_animator.py games/my_game --analyze --depth 20
+python run_animator.py my_game --analyze
+python run_animator.py games/my_game --analyze
 ```
 
 ---
@@ -236,7 +237,7 @@ The thresholds are constants near the top of `chess_game_analyzer.py` (`WIN_DROP
 
 ### Best lines and search depth
 
-Stockfish searches each position once, for its best lines: 3 by default (MultiPV 3), set with `--lines`. Before a move, the first line becomes the "best line" shown in the Analysis panel, and the others are kept as playable alternatives; after the move, the next position's search gives the evaluation. For every move, the analysis file records:
+Stockfish searches each position once, for its best lines: 1 by default for the video, set with `--lines` (the LaTeX report searches 3). Before a move, the first line becomes the "best line" shown in the Analysis panel, and any others are kept as playable alternatives for the report; after the move, the next position's search gives the evaluation. For every move, the analysis file records:
 
 | Field | Meaning |
 |---|---|

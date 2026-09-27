@@ -283,7 +283,8 @@ class AnalysisData:
         parts.append(depth)
         if e.get("time_limit"):
             parts.append(f"{e['time_limit']:g}s per position")
-        parts.append(f"{e.get('lines')} lines")
+        lines = e.get("lines")
+        parts.append(f"{lines} line{'s' if lines != 1 else ''}")
         threads = e.get("threads")
         parts.append(f"{threads} thread{'s' if threads != 1 else ''}")
         return " · ".join(parts)
@@ -340,18 +341,19 @@ class AnalysisData:
                       threads: Optional[int] = None,
                       hash_mb: Optional[int] = None) -> "AnalysisData":
         """
-        Run live analysis using chess_game_analyzer.py; the engine settings
-        are those of EnhancedGameAnalyzer (lines=None: ANALYSIS_LINES).
+        Run live analysis using chess_game_analyzer.py, with the video's
+        defaults: see video_search (lines=None: VIDEO_LINES).
         Prefer pre-computed JSON (from_json_file) for iteration speed.
         """
         try:
-            from chess_game_analyzer import ANALYSIS_LINES, EnhancedGameAnalyzer
+            from chess_game_analyzer import VIDEO_LINES, EnhancedGameAnalyzer, video_search
         except ImportError:
             raise ImportError("chess_game_analyzer.py must be in the Python path")
 
+        depth, time_limit = video_search(depth, time_limit)
         with EnhancedGameAnalyzer(stockfish_path, depth, time_limit,
                                   threads=threads, hash_mb=hash_mb,
-                                  lines=ANALYSIS_LINES if lines is None else lines) as analyzer:
+                                  lines=VIDEO_LINES if lines is None else lines) as analyzer:
             result = analyzer.analyze_game(str(pgn_path))
 
         game_info = GameInfo(
@@ -1339,7 +1341,7 @@ class QuickDemo(Scene):
 
 def generate_analysis_json(pgn_path: str, output_path: str = None,
                            stockfish_path: Optional[str] = None,
-                           depth: int = 20):
+                           depth: Optional[int] = None):
     """
     Generate analysis JSON from a PGN using chess_game_analyzer.
 
@@ -1352,7 +1354,7 @@ def generate_analysis_json(pgn_path: str, output_path: str = None,
     if output_path is None:
         output_path = Path(pgn_path).stem + "_analysis.json"
 
-    print(f"Analyzing {pgn_path} with depth {depth}…")
+    print(f"Analyzing {pgn_path}…")
     analysis = AnalysisData.from_analyzer(Path(pgn_path), stockfish_path, depth)
     analysis.save_to_json(Path(output_path))
     print(f"Analysis saved to {output_path}")

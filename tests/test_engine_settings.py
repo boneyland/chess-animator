@@ -21,7 +21,8 @@ import chess.engine
 
 from chess_game_analyzer import (ANALYSIS_LINES, DEFAULT_DEPTH, EnhancedGameAnalyzer,
                                  EnhancedMoveAnalysis, default_threads,
-                                 describe_search, search_depth)
+                                 VIDEO_TIME_LIMIT, describe_search, search_depth,
+                                 video_search)
 
 STOCKFISH = shutil.which("stockfish")
 SHORT_GAME = '[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 *\n'
@@ -111,6 +112,19 @@ class SearchDepthTest(unittest.TestCase):
         self.assertEqual(describe_search(None, 10), "10s per position")
 
 
+class VideoSearchTest(unittest.TestCase):
+
+    def test_video_searches_for_a_set_time_by_default(self):
+        self.assertEqual(video_search(None, None), (None, VIDEO_TIME_LIMIT))
+
+    def test_depth_alone_turns_the_default_time_limit_off(self):
+        self.assertEqual(video_search(20, None), (20, None))
+
+    def test_explicit_settings_are_kept(self):
+        self.assertEqual(video_search(None, 10), (None, 10))
+        self.assertEqual(video_search(24, 2), (24, 2))
+
+
 class SearchSummaryTest(unittest.TestCase):
 
     def test_summarises_depth_reached_lines_and_settings(self):
@@ -123,8 +137,8 @@ class SearchSummaryTest(unittest.TestCase):
         engine = {"depth": 30, "threads": 7, "hash_mb": 256, "lines": 3}
         self.assertEqual(
             format_search_summary(moves, engine),
-            "Depth reached (asked for 30): 14–18, average 16, before each move"
-            ", 20–22, average 21, after it (3 lines). "
+            "Depth reached (asked for 30): 14–18, median 16, before each move"
+            ", 20–22, median 21, after it (3 lines). "
             "7 threads, 256 MB hash.")
 
     def test_time_only_search_names_its_time(self):
