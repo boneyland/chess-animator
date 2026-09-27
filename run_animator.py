@@ -3,38 +3,32 @@ run_animator.py
 
 CLI coordinator for the chess game video animator.
 Writes a small JSON config file, sets CHESS_ANIMATOR_CONFIG in the
-environment, then delegates to Manim.
+environment, then delegates to Manim.  Run with --help for the options.
+"""
 
-Usage:
-    python run_animator.py <game_id> [options]
+import argparse
+import json
+import os
+import statistics
+import subprocess
+import sys
+from dataclasses import asdict
+from pathlib import Path
+from typing import Optional
 
-    <game_id> is the base filename without extension.  The script looks for:
-        {game_id}.pgn              — required for live analysis fallback
-        {game_id}_analysis.json   — pre-computed analysis (preferred)
-        {game_id}_notes.txt       — optional human commentary
+from chess_game_analyzer import (VIDEO_LINES, VIDEO_TIME_LIMIT, EnhancedGameAnalyzer,
+                                 ProgressLine, describe_search, positive_int,
+                                 search_depth, video_search)
+
+
+HELP_EPILOG = """\
+Files, for a game_id:
+    {game_id}.pgn             — required for live analysis fallback
+    {game_id}_analysis.json   — pre-computed analysis (preferred)
+    {game_id}_notes.txt       — optional human commentary
 
     If none of those files exist the script exits with a clear error rather
     than letting Manim fail cryptically.
-
-Options:
-    --quality   low | medium | high | ultra   (default: medium, 720p)
-                Maps to Manim's -pql / -pqm / -pqh / -pqk flags.
-    --scene     Manim scene class name         (default: AnimatedGame)
-    --no-preview                               Don't open the video after render.
-    --analyze   Run Stockfish analysis first, saving {game_id}_analysis.json,
-                then animate.  Requires chess_game_analyzer.py on the path.
-    --time-limit SECONDS
-                Seconds Stockfish searches each position, as deep as that
-                allows  (default: 4)
-    --depth N   Search to depth N instead; with --time-limit as well, each
-                search stops at whichever comes first.  A depth alone,
-                on 1 thread, gives the same result on every run
-    --threads N CPU threads for Stockfish  (default: all cores but one
-                with a time limit, 1 for a depth alone)
-    --hash MB   Stockfish hash table size  (default: 256)
-    --lines N   Lines Stockfish searches in each position (default: 1,
-                the best line, which is all the video shows)
-    --stockfish PATH  Path to Stockfish binary  (default: auto-detect)
 
 Examples:
     # 720p render (default quality)
@@ -55,21 +49,6 @@ Examples:
     # Render the QuickDemo scene (no game files needed)
     python run_animator.py --scene QuickDemo
 """
-
-import argparse
-import json
-import os
-import statistics
-import subprocess
-import sys
-from dataclasses import asdict
-from pathlib import Path
-from typing import Optional
-
-from chess_game_analyzer import (VIDEO_LINES, VIDEO_TIME_LIMIT, EnhancedGameAnalyzer,
-                                 ProgressLine, describe_search, positive_int,
-                                 search_depth, video_search)
-
 
 # ---------------------------------------------------------------------------
 # Quality flag mapping
@@ -186,7 +165,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Render a chess game animation via Manim.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+        epilog=HELP_EPILOG,
     )
 
     parser.add_argument(
