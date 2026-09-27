@@ -55,6 +55,7 @@ from animator_layout import (
     HEADER_TOP_Y, HEADER_BOTTOM_Y, HEADER_CENTER_Y,
     MOVE_LIST_TOP_Y, MOVE_LIST_BOTTOM_Y, MOVE_LIST_CENTER_Y,
     COMMENTARY_TOP_Y, COMMENTARY_BOTTOM_Y, COMMENTARY_CENTER_Y,
+    ANNOTATION_COLORS,
     get_panel_rect, get_classification_color, format_player_display
 )
 
@@ -400,6 +401,23 @@ class AnalysisData:
 # Dynamic Panel Components
 # =============================================================================
 
+# The symbol for each engine rating that gets one
+RATING_SYMBOLS = {
+    "blunder":    "??",
+    "mistake":    "?",
+    "inaccuracy": "?!",
+    "brilliant":  "!!",
+    "great":      "!",
+}
+
+
+def move_mark(move: MoveData, marks: Dict[int, str]) -> str:
+    """The move's mark: the PGN's ({ply: "!!"}) if it has one, else its rating's."""
+    if move.ply in marks:
+        return marks[move.ply]
+    return RATING_SYMBOLS.get(move.classification, "")
+
+
 class MoveListPanel:
     """
     Manages the move list: the left-hand column of the moves panel.
@@ -442,17 +460,7 @@ class MoveListPanel:
         return self.panel_group
 
     def _format_move_text(self, move: MoveData) -> str:
-        text = move.move_san
-        symbols = {
-            "blunder":    "??",
-            "mistake":    "?",
-            "inaccuracy": "?!",
-            "brilliant":  "!!",
-            "great":      "!",
-        }
-        if move.ply in self.marks:
-            return text + self.marks[move.ply]
-        return text + symbols.get(move.classification, "")
+        return move.move_san + move_mark(move, self.marks)
 
     def rows(self) -> List[Tuple[int, Optional[MoveData], Optional[MoveData]]]:
         """(move number, White's move, Black's move) for every move so far."""
@@ -883,6 +891,69 @@ def play_move(board: manim_chess.Board, position: chess.Board, uci: str) -> None
     position.push(move)
 
 
+class BoardAnnotation:
+    """
+    The last move's mark (!!, !, !?, ?!, ?, ??) shown on the board the way
+    en-croissant shows it: the move's two squares take on the mark's colour,
+    and a round badge with the symbol sits on the destination square's
+    top-right corner.  Moves without a mark keep the board's own highlight.
+    """
+
+    TINT = 0.4           # share of the mark's colour mixed into each square
+    BADGE_SIZE = 0.45    # badge diameter, in squares
+    BADGE_X = 0.9        # badge centre from the square's left edge, in squares
+    BADGE_Y = 0.045      # ... and below its top edge (raised 40% of its size)
+    SHADOW = 1 / 48      # drop shadow offset, in badge diameters (1px of 48)
+    GLYPH_HEIGHT = 0.62  # symbol height, in badge diameters
+    GLYPH_WIDTH = 0.72   # widest a two-character symbol may be
+
+    def __init__(self, board: manim_chess.Board):
+        self.board = board
+        self.layer = VGroup()   # added after the board, so it's drawn on top
+
+    def get_mobject(self) -> VGroup:
+        return self.layer
+
+    def update(self, move_uci: str, symbol: str) -> Optional[Animation]:
+        """
+        Mark the move just played on the board; call after play_move, whose
+        highlight this recolours.  Returns the badge's entrance, or None.
+        """
+        self.layer.remove(*self.layer.submobjects)
+        colors = ANNOTATION_COLORS.get(symbol)
+        if not colors:
+            return None
+        tint, badge_color = colors
+
+        board = self.board
+        for coordinate in board.highlighted_squares:
+            base = (board.color_light if board.is_light_square(coordinate)
+                    else board.color_dark)
+            board.squares[coordinate].set_fill(
+                interpolate_color(base, ManimColor(tint), self.TINT), family=False)
+
+        to_sq = chess.square_name(chess.Move.from_uci(move_uci).to_square)
+        square = board.squares[to_sq]
+        size = square.width
+        diameter = self.BADGE_SIZE * size
+        center = square.get_corner(UL) + np.array([self.BADGE_X * size,
+                                                   -self.BADGE_Y * size, 0])
+
+        shadow = Circle(radius=diameter / 2, stroke_width=0,
+                        fill_color=BLACK, fill_opacity=0.3)
+        shadow.move_to(center + DOWN * self.SHADOW * diameter)
+        disc = Circle(radius=diameter / 2, stroke_width=0,
+                      fill_color=badge_color, fill_opacity=1).move_to(center)
+        glyph = Text(symbol, font="Noto Sans", weight=ULTRABOLD, color=WHITE)
+        glyph.scale_to_fit_height(self.GLYPH_HEIGHT * diameter)
+        if glyph.width > self.GLYPH_WIDTH * diameter:
+            glyph.scale_to_fit_width(self.GLYPH_WIDTH * diameter)
+        glyph.move_to(center)
+
+        self.layer.add(shadow, disc, glyph)
+        return FadeIn(self.layer, scale=0.5)
+
+
 # =============================================================================
 # Main Animated Scene
 # =============================================================================
@@ -1124,6 +1195,7 @@ class AnimatedGame(Scene):
         eval_bar = ScaledEvaluationBar()
         eval_bar.scale(EVAL_BAR_SCALE)
         eval_bar.next_to(board, LEFT, buff=EVAL_BAR_OFFSET)
+        board_annotation = BoardAnnotation(board)
 
         # ── 4. Side panels ───────────────────────────────────────────────────
         header_panel = create_header_panel(analysis.game_info)
@@ -1137,7 +1209,8 @@ class AnimatedGame(Scene):
             metric_panel = MetricPlotPanel(analysis.moves)
 
         # Add all persistent objects
-        objects_to_add = [board, eval_bar, header_panel, move_list.get_mobject(),
+        objects_to_add = [board, board_annotation.get_mobject(), eval_bar,
+                          header_panel, move_list.get_mobject(),
                           comments.get_mobject(), analysis_box.get_mobject()]
         if metric_panel is not None:
             objects_to_add.append(metric_panel.get_mobject())
@@ -1149,6 +1222,8 @@ class AnimatedGame(Scene):
             play_move(board, position, move.move_uci)
 
             panel_anims = [
+                board_annotation.update(move.move_uci,
+                                        move_mark(move, self.pgn_marks)),
                 eval_bar.set_evaluation(move.eval_after),
                 move_list.add_move(move),
                 comments.update(move),
@@ -1166,7 +1241,7 @@ class AnimatedGame(Scene):
         self.wait(1)
 
         # Fade out the board area, keep side panels a moment then clear all
-        game_objects = Group(board, eval_bar)
+        game_objects = Group(board, board_annotation.get_mobject(), eval_bar)
         self.play(FadeOut(game_objects), run_time=0.8)
         self.play(FadeOut(Group(*objects_to_add)), run_time=0.5)
 
@@ -1206,11 +1281,13 @@ class QuickDemo(Scene):
             color=COLORS.text_primary
         ).move_to([PANEL_CENTER_X, HEADER_CENTER_Y, 0])
 
+        board_annotation = BoardAnnotation(board)
         move_list    = MoveListPanel()
         comments     = CommentPanel()
         analysis_box = AnalysisPanel()
 
-        self.add(board, eval_bar, title, move_list.get_mobject(),
+        self.add(board, board_annotation.get_mobject(), eval_bar, title,
+                 move_list.get_mobject(),
                  comments.get_mobject(), analysis_box.get_mobject())
         self.wait(1)
 
@@ -1241,8 +1318,10 @@ class QuickDemo(Scene):
         position = chess.Board()
         for move in demo_moves:
             play_move(board, position, move.move_uci)
+            badge = board_annotation.update(move.move_uci, move_mark(move, {}))
 
-            self.play(eval_bar.set_evaluation(move.eval_after), run_time=0.3)
+            self.play(eval_bar.set_evaluation(move.eval_after),
+                      *[badge] if badge else [], run_time=0.3)
             self.play(move_list.add_move(move), run_time=0.3)
             self.play(analysis_box.update(move), run_time=0.3)
             self.wait(1.3)

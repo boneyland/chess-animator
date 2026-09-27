@@ -202,6 +202,17 @@ class ColorScheme:
 # Default color scheme
 COLORS = ColorScheme()
 
+# Move marks on the board, in en-croissant's colours (Mantine's palette):
+# symbol -> (shade 6, mixed into the move's squares; shade 8, the badge)
+ANNOTATION_COLORS = {
+    "!!": ("#15aabf", "#0c8599"),   # cyan
+    "!":  ("#12b886", "#099268"),   # teal
+    "!?": ("#82c91e", "#66a80f"),   # lime
+    "?!": ("#fab005", "#f08c00"),   # yellow
+    "?":  ("#fd7e14", "#e8590c"),   # orange
+    "??": ("#fa5252", "#e03131"),   # red
+}
+
 
 # =============================================================================
 # Typography
