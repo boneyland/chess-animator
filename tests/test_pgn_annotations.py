@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from convert_script_to_comment_dict import (load_commentary, parse_comments_file,
-                                            parse_pgn_annotations)
+                                            parse_pgn_annotations, parse_pgn_clocks)
 
 
 def _write_temp(suffix: str, text: str) -> str:
@@ -61,6 +61,34 @@ class ParsePgnAnnotationsTest(unittest.TestCase):
     def test_move_marks_are_keyed_by_ply(self):
         _, marks = self.parse("1. e4! e5? 2. Nf3!! Nc6?? 3. Bb5!? a6?! 4. Ba4 $10")
         self.assertEqual(marks, {1: "!", 2: "?", 3: "!!", 4: "??", 5: "!?", 6: "?!"})
+
+
+class ParsePgnClocksTest(unittest.TestCase):
+
+    def parse(self, movetext, headers=""):
+        path = _write_temp(".pgn", headers + '[Result "*"]\n\n' + movetext + " *\n")
+        self.addCleanup(os.remove, path)
+        return parse_pgn_clocks(path)
+
+    def test_clocks_are_keyed_by_ply_in_seconds(self):
+        _, clocks = self.parse("1. e4 { [%clk 0:10:00] } e5 { [%clk 0:09:58.4] }")
+        self.assertEqual(clocks, {1: 600.0, 2: 598.4})
+
+    def test_start_time_comes_from_the_time_control(self):
+        start, _ = self.parse("1. e4", '[TimeControl "600+5"]\n')
+        self.assertEqual(start, 600)
+
+    def test_unknown_or_missing_time_control_has_no_start_time(self):
+        for headers in ("", '[TimeControl "-"]\n', '[TimeControl "40/7200:3600"]\n'):
+            with self.subTest(headers=headers):
+                self.assertIsNone(self.parse("1. e4", headers)[0])
+
+    def test_moves_without_a_clock_are_left_out(self):
+        _, clocks = self.parse("1. e4 { [%clk 0:03:00] } e5 2. Nf3 { [%clk 0:02:55] }")
+        self.assertEqual(clocks, {1: 180.0, 3: 175.0})
+
+    def test_game_without_clocks(self):
+        self.assertEqual(self.parse("1. e4 {Best by test.} e5"), (None, {}))
 
 
 class ParseCommentsFileTest(unittest.TestCase):

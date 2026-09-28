@@ -66,6 +66,35 @@ def parse_pgn_annotations(pgn_path):
     return comments, marks
 
 
+# A single-stage time control: base seconds, optionally "+increment"
+_TIME_CONTROL = re.compile(r'^(\d+)(?:\+\d+)?$')
+
+
+def parse_pgn_clocks(pgn_path):
+    """
+    Reads the clock times ([%clk h:mm:ss] commands, as in Lichess exports)
+    from the first game in a PGN file.
+
+    Returns (start, clocks):
+        start  -- each side's starting time in seconds, from a TimeControl
+                  header such as "600+5", or None if there isn't a simple one
+        clocks -- {ply: seconds left on the mover's clock after that move};
+                  moves without a clock are left out
+
+    Only the main line is read; side variations are ignored.
+    """
+    with open(pgn_path, encoding="utf-8") as f:
+        game = chess.pgn.read_game(f)
+    if game is None:
+        return None, {}
+
+    match = _TIME_CONTROL.match(game.headers.get("TimeControl", ""))
+    start = int(match.group(1)) if match else None
+    clocks = {node.ply(): node.clock() for node in game.mainline()
+              if node.clock() is not None}
+    return start, clocks
+
+
 # A notes-file key: [ply number], [INTRO], [RESULT] or [CONCLUSION] at the
 # start of a line (any case, optionally indented)
 _NOTES_KEY = re.compile(r'^[ \t]*\[(\d+|intro|result|conclusion)\]',
