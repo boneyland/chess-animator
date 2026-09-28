@@ -7,7 +7,7 @@
 #   chess_game_analyzer.py (e.g. TeX Live or MiKTeX); videos don't need it
 
 # Core animation
-manim>=0.18.0
+manim>=0.19.0
 manim-chess>=0.0.38
 
 # Chess logic and PGN/engine handling

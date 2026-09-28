@@ -39,21 +39,70 @@ The end card lists the engine and search settings used, e.g. `Stockfish 19 · de
 
 | Dependency | Notes |
 |---|---|
-| Python 3.10+ | |
-| [manim](https://github.com/ManimCommunity/manim) by [Manim Community](https://www.manim.community/) v0.18+ | Tested with v0.21 |
+| Python 3.12+ | |
+| [manim](https://github.com/ManimCommunity/manim) by [Manim Community](https://www.manim.community/) v0.19+ | Tested with v0.21 |
 | [manim-chess](https://github.com/swoyer2/manim_chess) | Provides `Board` and `EvaluationBar` |
 | [python-chess](https://python-chess.readthedocs.io/) | Installed as `chess` |
 | [Stockfish](https://stockfishchess.org/download/) | Binary on your system |
 
-Install the Python dependencies in a virtual environment:
+Clone this repository (or download it as a ZIP and extract it), open a terminal in its folder, then follow the steps for your platform.
+
+### Install on Linux and macOS
+
+Two of Manim's dependencies have no prebuilt packages here and are compiled when you install them (pycairo on both, ManimPango on Linux), so first install a C compiler, the Cairo and Pango headers, and Stockfish:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+# Debian / Ubuntu
+sudo apt install python3-venv python3-dev build-essential pkg-config libcairo2-dev libpango1.0-dev stockfish
+# Fedora
+sudo dnf install python3-devel gcc pkgconf-pkg-config cairo-devel pango-devel stockfish
+# Arch
+sudo pacman -S --needed python base-devel pkgconf cairo pango stockfish
+# macOS (Homebrew)
+brew install python pkg-config cairo stockfish
+```
+
+For other distributions, see [Manim's installation guide](https://docs.manim.community/en/stable/installation.html). Check `python3 --version` shows 3.12 or later: Ubuntu 22.04 and Debian 12 ship older versions, and macOS's own `python3` is older too (Homebrew's `python` above is new enough).
+
+Then install the Python dependencies in a virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Manim also needs a few system libraries (such as Cairo, Pango and FFmpeg); see [Manim's installation guide](https://docs.manim.community/en/stable/installation.html) for your platform.
+### Install on Windows
+
+Windows needs no extra system libraries: the Python packages come prebuilt with Cairo and Pango.
+
+```bat
+py -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+If you installed Python from the Microsoft Store, use `python -m venv .venv` instead: that version has no `py` command.
+
+In PowerShell, activating may fail with "running scripts is disabled on this system". Allow local scripts once, then activate again:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Or use Command Prompt (cmd), where `.venv\Scripts\activate` needs no setting.
+
+Install Stockfish with `winget install --id Stockfish.Stockfish`, then open a new terminal so it's on your `PATH`.
+
+### Stockfish from the official website
+
+If you download Stockfish from [its website](https://stockfishchess.org/download/) instead of a package manager, you get an archive with an executable named for your system and CPU, such as `stockfish-windows-x86-64-avx2.exe` or `stockfish-ubuntu-x86-64-avx2`. Extract it, then do one of these:
+
+- move the executable into a folder that's already on your `PATH`, such as `/usr/local/bin` on Linux and macOS (needs `sudo`) or, on most Linux distributions, `~/.local/bin`,
+- add the extracted folder to your `PATH`, or
+- leave it where it is and give its full path in the `STOCKFISH_PATH` environment variable or the `--stockfish` option (see [Stockfish location](#4-stockfish-location)).
+
+The name doesn't need changing: any `stockfish*` executable on your `PATH` is found.
 
 ---
 
