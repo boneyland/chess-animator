@@ -35,9 +35,17 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install cairo pango pkg-config stockfish
 
-      - name: System packages (Windows)
+      # Chocolatey's package isn't put on PATH, so fetch the official release
+      # and name it stockfish.exe, which is what the engine tests look for
+      - name: Stockfish (Windows)
         if: runner.os == 'Windows'
-        run: choco install stockfish -y
+        run: |
+          Invoke-WebRequest https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-windows-x86-64-universal.zip -OutFile sf.zip
+          Expand-Archive sf.zip sf
+          $exe = Get-ChildItem sf -Recurse -Filter "stockfish*.exe" | Select-Object -First 1
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\bin" | Out-Null
+          Copy-Item $exe.FullName "$env:RUNNER_TEMP\bin\stockfish.exe"
+          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP\bin"
 
       - run: python -m pip install -r requirements.txt
 

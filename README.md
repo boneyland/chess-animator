@@ -49,15 +49,15 @@ Clone this repository (or download it as a ZIP and extract it), open a terminal 
 
 ### Install on Linux and macOS
 
-Two of Manim's dependencies have no prebuilt packages here and are compiled when you install them (pycairo on both, ManimPango on Linux), so first install a C compiler, the Cairo and Pango headers, and Stockfish:
+Some of Manim's dependencies have no prebuilt packages here and are compiled when you install them (pycairo on both, ManimPango on Linux, and on Python 3.14 moderngl and glcontext too), so first install a C and C++ compiler, the Cairo and Pango headers, and Stockfish:
 
 ```bash
 # Debian / Ubuntu
 sudo apt install python3-venv python3-dev build-essential pkg-config libcairo2-dev libpango1.0-dev stockfish
 # Fedora
-sudo dnf install python3-devel gcc pkgconf-pkg-config cairo-devel pango-devel stockfish
-# Arch
-sudo pacman -S --needed python base-devel pkgconf cairo pango stockfish
+sudo dnf install python3-devel gcc-c++ pkgconf-pkg-config cairo-devel pango-devel stockfish
+# Arch (Stockfish is in the AUR; or see Stockfish from the official website below)
+sudo pacman -S --needed python base-devel pkgconf cairo pango
 # macOS (Homebrew)
 brew install python pkg-config cairo stockfish
 ```
@@ -74,7 +74,7 @@ pip install -r requirements.txt
 
 ### Install on Windows
 
-Windows needs no extra system libraries: the Python packages come prebuilt with Cairo and Pango.
+Windows needs no extra system libraries: the Python packages come prebuilt with Cairo and Pango. On Python 3.14, though, two of them (moderngl and glcontext) have no prebuilt packages yet and are compiled when you install them, which needs [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload. Python 3.12 or 3.13 needs nothing extra.
 
 ```bat
 py -m venv .venv
@@ -96,7 +96,7 @@ Install Stockfish with `winget install --id Stockfish.Stockfish`, then open a ne
 
 ### Stockfish from the official website
 
-If you download Stockfish from [its website](https://stockfishchess.org/download/) instead of a package manager, you get an archive with an executable named for your system and CPU, such as `stockfish-windows-x86-64-avx2.exe` or `stockfish-ubuntu-x86-64-avx2`. Extract it, then do one of these:
+If you download Stockfish from [its website](https://stockfishchess.org/download/) instead of a package manager, you get an archive with an executable named for your system and CPU, such as `stockfish-windows-x86-64-universal.exe` or `stockfish-linux-x86-64-universal`. Extract it, then do one of these:
 
 - move the executable into a folder that's already on your `PATH`, such as `/usr/local/bin` on Linux and macOS (needs `sudo`) or, on most Linux distributions, `~/.local/bin`,
 - add the extracted folder to your `PATH`, or
@@ -207,7 +207,7 @@ python run_animator.py sample_game --analyze \
     --stockfish /opt/homebrew/bin/stockfish
 ```
 
-By default Stockfish is found automatically in this order: the `STOCKFISH_PATH` environment variable if set, then `stockfish` on your `PATH`, then any `stockfish*` executable on your `PATH` (so official release names like `stockfish-ubuntu-x86-64-avx2` work unrenamed). If Stockfish isn't on your `PATH`, set `STOCKFISH_PATH` or pass `--stockfish`.
+By default Stockfish is found automatically in this order: the `STOCKFISH_PATH` environment variable if set, then `stockfish` on your `PATH`, then any `stockfish*` executable on your `PATH` (so official release names like `stockfish-linux-x86-64-universal` work unrenamed). If Stockfish isn't on your `PATH`, set `STOCKFISH_PATH` or pass `--stockfish`.
 
 ### 5. Your own game
 

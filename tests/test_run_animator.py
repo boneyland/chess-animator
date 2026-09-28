@@ -5,7 +5,7 @@ Run from the repository root:
     python -m unittest discover tests
 """
 
-import os
+import contextlib
 import subprocess
 import sys
 import tempfile
@@ -30,13 +30,11 @@ class SceneExitCodeTest(unittest.TestCase):
         self.assertEqual(cm.exception.code, 3)
 
     def test_ctrl_c_during_render_exits_quietly_and_removes_the_config(self):
-        with tempfile.TemporaryDirectory() as tmp, \
+        # chdir out before the directory is removed: Windows can't delete the cwd
+        with tempfile.TemporaryDirectory() as tmp, contextlib.chdir(tmp), \
              mock.patch.object(sys, "argv", ["run_animator.py", "game", "--no-preview"]), \
              mock.patch.object(run_animator.subprocess, "run", side_effect=KeyboardInterrupt), \
              mock.patch("builtins.print"):
-            cwd = os.getcwd()
-            os.chdir(tmp)
-            self.addCleanup(os.chdir, cwd)
             Path("game.pgn").write_text("1. e4 *\n")
             with self.assertRaises(SystemExit) as cm:
                 run_animator.main()

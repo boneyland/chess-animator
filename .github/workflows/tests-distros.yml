@@ -15,14 +15,19 @@ jobs:
       matrix:
         include:
           - image: fedora:latest
-            install: dnf install -y python3 python3-devel gcc cairo-devel pango-devel pkgconf-pkg-config stockfish
+            # g++: moderngl and glcontext have no Linux wheels for Python 3.14 yet
+            install: dnf install -y python3 python3-devel gcc-c++ cairo-devel pango-devel pkgconf-pkg-config stockfish
           - image: debian:stable
             install: |
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
-              apt-get install -y python3 python3-venv python3-dev gcc libcairo2-dev libpango1.0-dev pkg-config stockfish
+              apt-get install -y python3 python3-venv python3-dev g++ libcairo2-dev libpango1.0-dev pkg-config stockfish
           - image: archlinux:latest
-            install: pacman -Syu --noconfirm python gcc cairo pango pkgconf stockfish
+            # Stockfish is only in the AUR, so take the official release
+            install: |
+              pacman -Syu --noconfirm python gcc cairo pango pkgconf
+              curl -sL https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-linux-x86-64-universal.tar.gz | tar xz
+              find stockfish -type f -name 'stockfish-*' -exec install -m 755 {} /usr/local/bin/stockfish \;
 
     steps:
       - uses: actions/checkout@v4
