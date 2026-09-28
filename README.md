@@ -49,15 +49,15 @@ Clone this repository (or download it as a ZIP and extract it), open a terminal 
 
 ### Install on Linux and macOS
 
-Some of Manim's dependencies have no prebuilt packages here and are compiled when you install them (pycairo on both, ManimPango on Linux, and on Python 3.14 moderngl and glcontext too), so first install a C and C++ compiler, the Cairo and Pango headers, and Stockfish:
+Some of Manim's dependencies have no prebuilt packages here and are compiled when you install them (pycairo on both, ManimPango on Linux, and on Python 3.14 moderngl and glcontext too), so first install a C and C++ compiler, the Cairo and Pango headers, and Stockfish. The Linux lines also install Liberation Mono, which has the same character widths as the video's Courier New and is used in its place (macOS and Windows have Courier New already):
 
 ```bash
 # Debian / Ubuntu
-sudo apt install python3-venv python3-dev build-essential pkg-config libcairo2-dev libpango1.0-dev stockfish
+sudo apt install python3-venv python3-dev build-essential pkg-config libcairo2-dev libpango1.0-dev fonts-liberation stockfish
 # Fedora
-sudo dnf install python3-devel gcc-c++ pkgconf-pkg-config cairo-devel pango-devel stockfish
+sudo dnf install python3-devel gcc-c++ pkgconf-pkg-config cairo-devel pango-devel liberation-mono-fonts stockfish
 # Arch (Stockfish is in the AUR; or see Stockfish from the official website below)
-sudo pacman -S --needed python base-devel pkgconf cairo pango
+sudo pacman -S --needed python base-devel pkgconf cairo pango ttf-liberation
 # macOS (Homebrew)
 brew install python pkg-config cairo stockfish
 ```

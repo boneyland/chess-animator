@@ -15,17 +15,18 @@ jobs:
       matrix:
         include:
           - image: fedora:latest
-            # g++: moderngl and glcontext have no Linux wheels for Python 3.14 yet
-            install: dnf install -y python3 python3-devel gcc-c++ cairo-devel pango-devel pkgconf-pkg-config stockfish
+            # g++: moderngl and glcontext have no Linux wheels for Python 3.14 yet.
+            # Liberation Mono stands in for Courier New, which the layout tests measure
+            install: dnf install -y python3 python3-devel gcc-c++ cairo-devel pango-devel pkgconf-pkg-config liberation-mono-fonts stockfish
           - image: debian:stable
             install: |
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
-              apt-get install -y python3 python3-venv python3-dev g++ libcairo2-dev libpango1.0-dev pkg-config stockfish
+              apt-get install -y python3 python3-venv python3-dev g++ libcairo2-dev libpango1.0-dev pkg-config fonts-liberation stockfish
           - image: archlinux:latest
             # Stockfish is only in the AUR, so take the official release
             install: |
-              pacman -Syu --noconfirm python gcc cairo pango pkgconf
+              pacman -Syu --noconfirm python gcc cairo pango pkgconf ttf-liberation
               curl -sL https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-linux-x86-64-universal.tar.gz | tar xz
               find stockfish -type f -name 'stockfish-*' -exec install -m 755 {} /usr/local/bin/stockfish \;
 
