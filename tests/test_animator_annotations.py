@@ -16,7 +16,7 @@ import chess
 import manim_chess
 from manim import ManimColor, interpolate_color
 
-from animator_game import (BoardAnnotation, CommentPanel, MoveData,
+from animator_game import (BoardAnnotation, CheckGlow, CommentPanel, MoveData,
                            MoveListPanel, move_mark, play_move)
 from animator_layout import ANNOTATION_COLORS
 
@@ -98,6 +98,50 @@ class BoardAnnotationTest(unittest.TestCase):
         self.play("e7e5", "")
         self.assertEqual(len(self.annotation.get_mobject().submobjects), 0)
         self.assertEqual(self.fill("e4"), self.board.color_light.to_hex().lower())
+
+
+class CheckGlowTest(unittest.TestCase):
+
+    def setUp(self):
+        self.board = manim_chess.Board()
+        self.board.set_board_from_FEN()
+        self.board.scale(0.74)
+        self.position = chess.Board()
+        self.glow = CheckGlow(self.board)
+
+    def play(self, *ucis):
+        for uci in ucis:
+            play_move(self.board, self.position, uci)
+            self.glow.update(self.position)
+
+    def glowing_squares(self):
+        return [name for name, square in self.board.squares.items()
+                if self.glow.get_mobject() in square.submobjects]
+
+    def test_king_in_check_glows_between_its_square_and_the_king(self):
+        self.play("e2e4", "f7f6", "d1h5")
+        self.assertEqual(self.glowing_squares(), ["e8"])
+        family = self.board.get_family()
+        glow = self.glow.get_mobject()
+        self.assertLess(family.index(self.board.squares["e8"]), family.index(glow))
+        self.assertLess(family.index(glow), family.index(self.board.pieces["e8"]))
+
+    def test_glow_stays_inside_the_square(self):
+        self.play("e2e4", "f7f6", "d1h5")
+        square, glow = self.board.squares["e8"], self.glow.get_mobject()
+        self.assertGreater(len(glow.submobjects), 0)
+        self.assertLessEqual(glow.width, square.width + 1e-6)
+        self.assertLessEqual(glow.height, square.height + 1e-6)
+        self.assertTrue(all(abs(a - b) < 1e-6 for a, b in
+                            zip(glow.get_center(), square.get_center())))
+
+    def test_glow_goes_once_the_check_is_answered(self):
+        self.play("e2e4", "f7f6", "d1h5", "g7g6")
+        self.assertEqual(self.glowing_squares(), [])
+
+    def test_no_glow_without_check(self):
+        self.play("e2e4")
+        self.assertEqual(self.glowing_squares(), [])
 
 
 class MoveListRowsTest(unittest.TestCase):

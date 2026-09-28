@@ -22,7 +22,7 @@ Each frame is laid out like this:
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **Board:** the last move's mark (`!!`, `!`, `!?`, `?!`, `?`, `??`) shown the way [en-croissant](https://github.com/franciscoBSalgueiro/en-croissant) shows it: the move's two squares are tinted in the mark's colour, and a round badge with the symbol sits on the destination square's corner.
+- **Board:** the last move's mark (`!!`, `!`, `!?`, `?!`, `?`, `??`) shown the way [en-croissant](https://github.com/franciscoBSalgueiro/en-croissant) shows it: the move's two squares are tinted in the mark's colour, and a round badge with the symbol sits on the destination square's corner. A king in check glows red, as in en-croissant.
 - **Eval bar:** Stockfish's evaluation, shown as a number, as `M3` for a forced mate, or as `1-0` / `0-1` at checkmate. The fill uses Lichess's win-probability curve, so a big advantage fills most of the bar but only a forced mate fills all of it.
 - **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by its rating: green for Stockfish's best move, black for a move with no rating, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
 - **Commentary:** your own notes for the current move, from the PGN or a notes file, beside the move list.

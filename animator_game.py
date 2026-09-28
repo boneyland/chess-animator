@@ -924,6 +924,77 @@ class BoardAnnotation:
         return FadeIn(self.layer, scale=0.5)
 
 
+class CheckGlow:
+    """
+    A red glow on the square of a king in check, as en-croissant draws it:
+    chessground's radial gradient, opaque red out to a quarter of the way to
+    the square's corners, then fading out by 89%.  The glow sits under the
+    king and the square's coordinate label, like a background.
+    """
+
+    # chessground's cg-board square.check stops: (radius as a share of the
+    # centre-to-corner distance, colour, opacity)
+    STOPS = [(0.0, "#FF0000", 1.0), (0.25, "#E70000", 1.0), (0.89, "#A90000", 0.0)]
+    RINGS = 24   # discs approximating each part of the gradient
+
+    def __init__(self, board: manim_chess.Board):
+        self.board = board
+        self.layer = VGroup()
+        self.square: Optional[Mobject] = None   # the square holding the glow
+
+    def get_mobject(self) -> VGroup:
+        return self.layer
+
+    def update(self, position: chess.Board) -> None:
+        """
+        Show the glow if the side to move in `position` is in check; call
+        after play_move.  Instant, like the move itself.
+        """
+        if self.square is not None:
+            self.square.remove(self.layer)
+            self.square = None
+        self.layer.remove(*self.layer.submobjects)
+        if not position.is_check():
+            return
+
+        square = self.board.squares[chess.square_name(position.king(position.turn))]
+        self.layer.add(*self._discs(square))
+        # First among the square's submobjects: drawn after its fill, before
+        # its label, and before the pieces, which the board adds after squares.
+        square.submobjects.insert(0, self.layer)
+        self.square = square
+
+    @classmethod
+    def _discs(cls, square: Mobject) -> List[VMobject]:
+        """
+        Concentric discs, largest first, clipped to the square.  Each band
+        between two radii is covered by every disc from its outer edge out,
+        so a disc's opacity is set to bring the stack to the gradient's
+        opacity at the middle of its band.
+        """
+        size = square.width
+        corner = size / math.sqrt(2)
+        clip = Square(side_length=size).move_to(square.get_center())
+        discs = []
+        stacked = 0.0   # opacity of the discs already drawn
+        for (t0, c0, a0), (t1, c1, a1) in reversed(list(zip(cls.STOPS, cls.STOPS[1:]))):
+            for k in range(cls.RINGS, 0, -1):
+                outer = t0 + (t1 - t0) * k / cls.RINGS
+                mid = (k - 0.5) / cls.RINGS
+                target = a0 + (a1 - a0) * mid
+                if target <= 0:
+                    continue
+                opacity = 1.0 if target >= 1 else 1 - (1 - target) / (1 - stacked)
+                stacked = target
+                color = interpolate_color(ManimColor(c0), ManimColor(c1), mid)
+                disc = Circle(radius=outer * corner).move_to(square.get_center())
+                if outer * corner > size / 2:
+                    disc = Intersection(disc, clip)
+                disc.set_fill(color, opacity=opacity).set_stroke(width=0)
+                discs.append(disc)
+        return discs
+
+
 # =============================================================================
 # Main Animated Scene
 # =============================================================================
@@ -1167,6 +1238,7 @@ class AnimatedGame(Scene):
         eval_bar.scale(EVAL_BAR_SCALE)
         eval_bar.next_to(board, LEFT, buff=EVAL_BAR_OFFSET)
         board_annotation = BoardAnnotation(board)
+        check_glow = CheckGlow(board)
 
         # ── 4. Side panels ───────────────────────────────────────────────────
         header_panel = create_header_panel(analysis.game_info)
@@ -1188,6 +1260,7 @@ class AnimatedGame(Scene):
         position = chess.Board()
         for idx, move in enumerate(analysis.moves):
             play_move(board, position, move.move_uci)
+            check_glow.update(position)
 
             panel_anims = [
                 board_annotation.update(move.move_uci,
@@ -1249,6 +1322,7 @@ class QuickDemo(Scene):
         ).move_to([PANEL_CENTER_X, HEADER_CENTER_Y, 0])
 
         board_annotation = BoardAnnotation(board)
+        check_glow = CheckGlow(board)
         move_list    = MoveListPanel()
         comments     = CommentPanel()
         analysis_box = AnalysisPanel()
@@ -1285,6 +1359,7 @@ class QuickDemo(Scene):
         position = chess.Board()
         for move in demo_moves:
             play_move(board, position, move.move_uci)
+            check_glow.update(position)
             badge = board_annotation.update(move.move_uci, move_mark(move, {}))
 
             self.play(eval_bar.set_evaluation(move.eval_after),
