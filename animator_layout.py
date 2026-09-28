@@ -105,6 +105,10 @@ BOARD_CENTER_Y = UPPER_CENTER_Y   # tracks the upper zone, not a hard-coded 0.0
 EVAL_BAR_SCALE  = 0.72
 EVAL_BAR_OFFSET = 0.3   # gap between eval bar and board left edge
 
+# Clocks (when the PGN has them): Black's above the board, White's below,
+# this far from its edge; they fit the ~0.45 left between board and zone edge
+CLOCK_GAP = 0.12
+
 
 # =============================================================================
 # Right Panel Layout  (three stacked panels, right side of upper zone)
@@ -227,6 +231,7 @@ class Typography:
     move_size:        int = 14
     commentary_size:  int = 14
     label_size:       int = 14
+    clock_size:       int = 20
 
     # Header panel — compact sizes so content fits the short panel height
     header_player_size: int = 17   # player name lines

@@ -23,6 +23,7 @@ Each frame is laid out like this:
 ```
 
 - **Board:** the last move's mark (`!!`, `!`, `!?`, `?!`, `?`, `??`) shown the way [en-croissant](https://github.com/franciscoBSalgueiro/en-croissant) shows it: the move's two squares are tinted in the mark's colour, and a round badge with the symbol sits on the destination square's corner. A king in check glows red, as in en-croissant.
+- **Player bars:** Lichess-style, Black's above the board and White's below: the player's name and rating, the material that side is up (the opponent's pieces, with equal trades cancelled, and `+N` points for the side ahead), and, if the PGN has clock times (`[%clk 0:10:03]`, as in Lichess exports), the clock, darker for the side to move. Clocks start from the `TimeControl` header's base time; below 20 seconds they show tenths.
 - **Eval bar:** Stockfish's evaluation, shown as a number, as `M3` for a forced mate, or as `1-0` / `0-1` at checkmate. The fill uses Lichess's win-probability curve, so a big advantage fills most of the bar but only a forced mate fills all of it.
 - **Moves:** one row per move number, with White's and Black's moves in aligned columns, scrolling as the game goes on. Each move is colored by its rating: green for Stockfish's best move, black for a move with no rating, and amber, orange and red for inaccuracies, mistakes and blunders. Marks such as `?!` or `??` come from the engine, or from the PGN if it has its own (see [Adding Your Own Commentary](#adding-your-own-commentary)).
 - **Commentary:** your own notes for the current move, from the PGN or a notes file, beside the move list.
@@ -233,7 +234,7 @@ Comments in curly braces after a move are shown in the commentary panel when tha
 1. Nf3 Nf6 2. c4 g6 ... 11. Bg5? {Moving the same piece twice.} 11... Na4!!
 ```
 
-Only the main line is read; side variations are ignored. Clock and eval tags from Lichess or Chess.com exports, such as `[%clk 0:03:00]`, are ignored too, so downloaded games work as-is.
+Only the main line is read; side variations are ignored. Clock and eval tags from Lichess or Chess.com exports, such as `[%clk 0:03:00]`, are not shown as commentary, so downloaded games work as-is; clock times appear beside the board instead.
 
 ### In a notes file
 

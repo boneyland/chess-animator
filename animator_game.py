@@ -38,7 +38,7 @@ import chess.pgn
 from animator_layout import (
     COLORS, FONTS, FRAME_WIDTH, FRAME_HEIGHT,
     BOARD_SCALE, BOARD_CENTER_X, BOARD_CENTER_Y,
-    EVAL_BAR_SCALE, EVAL_BAR_OFFSET,
+    EVAL_BAR_SCALE, EVAL_BAR_OFFSET, CLOCK_GAP,
     PANEL_LEFT_X, PANEL_CENTER_X,
     MOVES_COLUMN_RIGHT_X, MOVES_COLUMN_CENTER_X, MOVES_COLUMN_PADDING,
     COMMENT_LEFT_X, COMMENT_RIGHT_X, ANALYSIS_LEFT_X, ANALYSIS_RIGHT_X,
@@ -140,7 +140,7 @@ class ScaledEvaluationBar(manim_chess.EvaluationBar):
         return [Transform(self.white_rectangle, new_rect),
                 Transform(self.bot_text, new_text)]
 
-from convert_script_to_comment_dict import load_commentary
+from convert_script_to_comment_dict import load_commentary, parse_pgn_clocks
 from chess_openings import OpeningBook
 from animator_metrics import MetricPlotPanel
 
@@ -995,6 +995,157 @@ class CheckGlow:
         return discs
 
 
+# Below this many seconds a clock shows tenths, as Lichess's does when low
+LOW_TIME_SECONDS = 20
+
+
+def format_clock(seconds: Optional[float]) -> str:
+    """A clock reading: m:ss, h:mm:ss from an hour, 0:ss.t when low."""
+    if seconds is None:
+        return "–:––"
+    if seconds < LOW_TIME_SECONDS:
+        tenths = int(round(seconds * 10, 6))   # truncated, as clocks count
+        return f"0:{tenths // 10:02d}.{tenths % 10}"
+    whole = int(seconds)
+    hours, minutes, secs = whole // 3600, whole // 60 % 60, whole % 60
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
+
+
+# Material points of each piece type, as Lichess counts them
+PIECE_POINTS = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3,
+                chess.ROOK: 5, chess.QUEEN: 9}
+
+
+def material_imbalance(position: chess.Board) -> Tuple[List[int], List[int], int]:
+    """
+    The material each side is up, Lichess-style: for every piece type the
+    side with more of it is up the difference, so equal trades cancel.
+
+    Returns (White's pieces up, Black's pieces up, White's lead in points),
+    each list of piece types ordered pawns first, queens last.
+    """
+    up = {chess.WHITE: [], chess.BLACK: []}
+    lead = 0
+    for piece_type, points in PIECE_POINTS.items():
+        diff = (len(position.pieces(piece_type, chess.WHITE))
+                - len(position.pieces(piece_type, chess.BLACK)))
+        up[chess.WHITE if diff > 0 else chess.BLACK] += [piece_type] * abs(diff)
+        lead += diff * points
+    return up[chess.WHITE], up[chess.BLACK], lead
+
+
+@functools.lru_cache(maxsize=None)
+def _piece_icon(piece_type: int, is_white: bool) -> SVGMobject:
+    """manim-chess's piece drawing at material-icon size (copy before use)."""
+    name = ("w" if is_white else "b") + chess.piece_symbol(piece_type).upper()
+    path = Path(manim_chess.__file__).parent / "piece_svgs" / f"{name}.svg"
+    return SVGMobject(str(path)).scale_to_fit_height(PlayerBars.ICON_HEIGHT)
+
+
+class PlayerBars:
+    """
+    A Lichess-style bar for each player, Black's above the board and White's
+    below: the name on the left, then the material that side is up (the
+    opponent's pieces, and +points for the side ahead), and on the right the
+    clock from the PGN's [%clk] times when it has them.  The side to move's
+    clock is in the primary text colour, the other dimmed.  Only the mover's
+    clock changes on a move; a move without a time keeps the last one shown.
+    """
+
+    NAME_MAX_CHARS = 24   # a longer name is cut, leaving room for the rest
+    ICON_HEIGHT = 0.2     # material icons
+    ICON_STEP = 0.12      # icons of one type overlap, as on Lichess ...
+    GROUP_GAP = 0.1       # ... with a little space between types
+    ITEM_GAP = 0.15       # between the name, the icons and the points
+    IDLE_CLOCK_OPACITY = 0.3   # the clock of the side not to move
+
+    def __init__(self, board: manim_chess.Board, names: Tuple[str, str],
+                 start: Optional[float], clocks: Dict[int, float]):
+        self.board = board
+        self.start = start      # each side's starting time, if known
+        self.clocks = clocks    # {ply: mover's seconds left after it}
+        # Every item is centred on the height of a digit, so all sit alike
+        digit_half = Text("0", font=FONTS.body_font, weight=FONTS.weight,
+                          font_size=FONTS.clock_size).height / 2
+        self.bar_y = (board.get_bottom()[1] - CLOCK_GAP - digit_half,   # White
+                      board.get_top()[1] + CLOCK_GAP + digit_half)      # Black
+        left_x = board.get_left()[0]
+        self.name_labels = tuple(
+            _left_text(self.fit_name(name), left_x, y, font=FONTS.body_font,
+                       weight=FONTS.weight, font_size=FONTS.player_name_size,
+                       color=COLORS.text_primary)
+            for name, y in zip(names, self.bar_y))
+        self.layer = VGroup()   # material and clocks, redrawn on each move
+        self._show(0, chess.Board())
+
+    def get_mobject(self) -> VGroup:
+        return VGroup(*self.name_labels, self.layer)
+
+    @classmethod
+    def fit_name(cls, name: str) -> str:
+        if len(name) <= cls.NAME_MAX_CHARS:
+            return name
+        return name[:cls.NAME_MAX_CHARS - 1] + "…"
+
+    def times(self, ply: int) -> Tuple[Optional[float], Optional[float]]:
+        """(White's, Black's) time after `ply` plies."""
+        def last(parity):
+            known = [p for p in self.clocks if p <= ply and p % 2 == parity]
+            return self.clocks[max(known)] if known else self.start
+        return last(1), last(0)
+
+    def clock_labels(self, ply: int) -> Tuple[Text, ...]:
+        """(White's, Black's) clock after `ply` plies, or () without clocks."""
+        if not self.clocks:
+            return ()
+        white_to_move = ply % 2 == 0
+        right_x = self.board.get_right()[0]
+        labels = []
+        for seconds, y, to_move in zip(self.times(ply), self.bar_y,
+                                       (white_to_move, not white_to_move)):
+            label = Text(format_clock(seconds), font=FONTS.body_font,
+                         weight=FONTS.weight, font_size=FONTS.clock_size,
+                         color=COLORS.text_primary if to_move else COLORS.text_secondary,
+                         fill_opacity=1 if to_move else self.IDLE_CLOCK_OPACITY)
+            label.move_to([right_x - label.width / 2, y, 0])
+            labels.append(label)
+        return tuple(labels)
+
+    def material_items(self, position: chess.Board) -> Tuple[List[Mobject], List[Mobject]]:
+        """(White's, Black's) material icons, then +points for the side ahead."""
+        white_up, black_up, lead = material_imbalance(position)
+        bars = []
+        for is_white, pieces, name, y in zip((True, False), (white_up, black_up),
+                                             self.name_labels, self.bar_y):
+            items: List[Mobject] = []
+            x = name.get_right()[0] + self.ITEM_GAP
+            for i, piece_type in enumerate(pieces):
+                if i and piece_type != pieces[i - 1]:
+                    x += self.GROUP_GAP
+                icon = _piece_icon(piece_type, not is_white).copy()
+                icon.move_to([x + icon.width / 2, y, 0])
+                items.append(icon)
+                x += self.ICON_STEP
+            side_lead = lead if is_white else -lead
+            if side_lead > 0:
+                if items:
+                    x = items[-1].get_right()[0] + self.ITEM_GAP / 2
+                items.append(_left_text(f"+{side_lead}", x, y, font=FONTS.body_font,
+                                        weight=FONTS.weight,
+                                        font_size=FONTS.player_name_size,
+                                        color=COLORS.text_secondary))
+            bars.append(items)
+        return bars[0], bars[1]
+
+    def _show(self, ply: int, position: chess.Board) -> Optional[Animation]:
+        white, black = self.material_items(position)
+        return _swap_content(self.layer, white + black + list(self.clock_labels(ply)))
+
+    def update(self, ply: int, position: chess.Board) -> Optional[Animation]:
+        """Show the bars after `ply` plies, reaching `position`; the transition."""
+        return self._show(ply, position)
+
+
 # =============================================================================
 # Main Animated Scene
 # =============================================================================
@@ -1017,6 +1168,8 @@ class AnimatedGame(Scene):
         self.stockfish_path = cfg.get("stockfish_path")
         self.custom_comments: Dict[str, str] = {}
         self.pgn_marks: Dict[int, str] = {}
+        self.clock_start: Optional[int] = None
+        self.clocks: Dict[int, float] = {}
 
     def _load_analysis(self) -> AnalysisData:
         """
@@ -1067,6 +1220,13 @@ class AnimatedGame(Scene):
         for key, n_lines in CommentPanel.overlong_comments(self.custom_comments):
             print(f"Warning: comment for ply {key} wraps to {n_lines} lines; "
                   f"only the first {CommentPanel.max_lines()} will be shown.")
+
+    def _load_clocks(self):
+        """Load the PGN's [%clk] times into self.clocks, and its start time."""
+        if self.pgn_path and Path(self.pgn_path).exists():
+            self.clock_start, self.clocks = parse_pgn_clocks(self.pgn_path)
+        if self.clocks:
+            print(f"Loaded {len(self.clocks)} clock times from {self.pgn_path}")
 
     def _make_title_card(self, info: "GameInfo") -> VGroup:
         """
@@ -1220,6 +1380,7 @@ class AnimatedGame(Scene):
         self.camera.background_color = COLORS.background
         analysis = self._load_analysis()
         self._load_custom_comments()
+        self._load_clocks()
 
         # ── 2. Title card ────────────────────────────────────────────────────
         title_card = self._make_title_card(analysis.game_info)
@@ -1239,6 +1400,10 @@ class AnimatedGame(Scene):
         eval_bar.next_to(board, LEFT, buff=EVAL_BAR_OFFSET)
         board_annotation = BoardAnnotation(board)
         check_glow = CheckGlow(board)
+        info = analysis.game_info
+        player_bars = PlayerBars(board, (format_player_display(info.white, info.white_elo),
+                                         format_player_display(info.black, info.black_elo)),
+                                 self.clock_start, self.clocks)
 
         # ── 4. Side panels ───────────────────────────────────────────────────
         header_panel = create_header_panel(analysis.game_info)
@@ -1253,7 +1418,7 @@ class AnimatedGame(Scene):
         objects_to_add = [board, board_annotation.get_mobject(), eval_bar,
                           header_panel, move_list.get_mobject(),
                           comments.get_mobject(), analysis_box.get_mobject(),
-                          metric_panel.get_mobject()]
+                          metric_panel.get_mobject(), player_bars.get_mobject()]
         self.add(*objects_to_add)
 
         # ── 6. Animation loop ────────────────────────────────────────────────
@@ -1270,6 +1435,7 @@ class AnimatedGame(Scene):
                 comments.update(move),
                 analysis_box.update(move),
                 metric_panel.advance_to_ply(idx),
+                player_bars.update(move.ply, position),
             ]
             panel_anims = [a for a in panel_anims if a is not None]
 
@@ -1281,7 +1447,8 @@ class AnimatedGame(Scene):
         self.wait(1)
 
         # Fade out the board area, keep side panels a moment then clear all
-        game_objects = Group(board, board_annotation.get_mobject(), eval_bar)
+        game_objects = Group(board, board_annotation.get_mobject(), eval_bar,
+                             player_bars.get_mobject())
         self.play(FadeOut(game_objects), run_time=0.8)
         self.play(FadeOut(Group(*objects_to_add)), run_time=0.5)
 
