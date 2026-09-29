@@ -44,6 +44,8 @@ from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional, List, Dict, Tuple, Union
 from pathlib import Path
 
+from pgn_games import read_game
+
 
 def find_stockfish(stockfish_path: Optional[str] = None) -> str:
     """
@@ -522,10 +524,11 @@ class EnhancedGameAnalyzer:
     def analyze_game(self, pgn_source: Union[str, io.StringIO], 
                      min_diagram_spacing: int = 6,
                      top_n_swings: int = 2,
-                     progress: Optional[Callable[[int, int], None]] = None
+                     progress: Optional[Callable[[int, int], None]] = None,
+                     game_number: int = 1
                      ) -> EnhancedGameAnalysisResult:
         """
-        Analyze every move of the first game in pgn_source with Stockfish.
+        Analyze every move of one game in pgn_source with Stockfish.
         
         Args:
             pgn_source: PGN file path, PGN string, or StringIO object
@@ -533,6 +536,7 @@ class EnhancedGameAnalyzer:
             top_n_swings: Number of "biggest swing" positions to always include (default: 2)
             progress: Optional callback, called as progress(plies_done, total_plies)
                       before the first ply and after each ply is analyzed
+            game_number: Which game in pgn_source, counting from 1 (default: the first)
         """
         # --- 1. Open the PGN source ---
         if isinstance(pgn_source, str):
@@ -544,9 +548,10 @@ class EnhancedGameAnalyzer:
             pgn_io = pgn_source
         
         try:
-            game = chess.pgn.read_game(pgn_io)
+            game = read_game(pgn_io, game_number)
             if not game:
-                raise ValueError("Could not parse PGN")
+                raise ValueError("Could not parse PGN" if game_number == 1
+                                 else f"The PGN has no game {game_number}")
             
             board = game.board()
             moves_analysis = []

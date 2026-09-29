@@ -12,6 +12,8 @@ import os
 
 import chess.pgn
 
+from pgn_games import open_game
+
 # PGN move-mark NAGs ($1..$6) and the symbols they stand for
 NAG_SYMBOLS = {
     chess.pgn.NAG_GOOD_MOVE: "!",
@@ -31,9 +33,10 @@ def _clean_pgn_comment(text):
     return " ".join(_PGN_COMMAND.sub(" ", text).split())
 
 
-def parse_pgn_annotations(pgn_path):
+def parse_pgn_annotations(pgn_path, game_number=1):
     """
-    Reads commentary and move marks from the first game in a PGN file.
+    Reads commentary and move marks from one game in a PGN file (the first
+    unless game_number says otherwise).
 
     Returns (comments, marks):
         comments -- {ply: text} using the same keys as parse_comments_file:
@@ -43,8 +46,7 @@ def parse_pgn_annotations(pgn_path):
 
     Only the main line is read; side variations are ignored.
     """
-    with open(pgn_path, encoding="utf-8") as f:
-        game = chess.pgn.read_game(f)
+    game = open_game(pgn_path, game_number)
 
     comments, marks = {}, {}
     if game is None:
@@ -70,10 +72,10 @@ def parse_pgn_annotations(pgn_path):
 _TIME_CONTROL = re.compile(r'^(\d+)(?:\+\d+)?$')
 
 
-def parse_pgn_clocks(pgn_path):
+def parse_pgn_clocks(pgn_path, game_number=1):
     """
     Reads the clock times ([%clk h:mm:ss] commands, as in Lichess exports)
-    from the first game in a PGN file.
+    from one game in a PGN file (the first unless game_number says otherwise).
 
     Returns (start, clocks):
         start  -- each side's starting time in seconds, from a TimeControl
@@ -83,8 +85,7 @@ def parse_pgn_clocks(pgn_path):
 
     Only the main line is read; side variations are ignored.
     """
-    with open(pgn_path, encoding="utf-8") as f:
-        game = chess.pgn.read_game(f)
+    game = open_game(pgn_path, game_number)
     if game is None:
         return None, {}
 
@@ -119,17 +120,17 @@ def parse_comments_file(file_path):
     return {key.group(1).lower(): " ".join(content[key.end():end].split())
             for key, end in zip(keys, ends)}
 
-def load_commentary(pgn_path=None, notes_path=None):
+def load_commentary(pgn_path=None, notes_path=None, game_number=1):
     """
     Collects commentary for the animator from the PGN and the notes file.
 
     Returns (comments, marks) as parse_pgn_annotations does.  Either path may
-    be None or missing.  Where both sources have an entry for the same key,
+    be None or missing; game_number picks the game in the PGN.  Where both sources have an entry for the same key,
     the notes file wins.
     """
     comments, marks = {}, {}
     if pgn_path and os.path.exists(pgn_path):
-        comments, marks = parse_pgn_annotations(pgn_path)
+        comments, marks = parse_pgn_annotations(pgn_path, game_number)
     if notes_path and os.path.exists(notes_path):
         comments.update(parse_comments_file(notes_path))
     return comments, marks

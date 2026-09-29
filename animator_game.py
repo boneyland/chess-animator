@@ -141,6 +141,7 @@ class ScaledEvaluationBar(manim_chess.EvaluationBar):
                 Transform(self.bot_text, new_text)]
 
 from convert_script_to_comment_dict import load_commentary, parse_pgn_clocks
+from pgn_games import game_file
 from chess_openings import OpeningBook
 from animator_metrics import MetricPlotPanel
 
@@ -277,19 +278,20 @@ class AnalysisData:
 
     @classmethod
     def from_json_file(cls, json_path: Path,
-                       pgn_path: Optional[Path] = None) -> "AnalysisData":
+                       pgn_path: Optional[Path] = None,
+                       game_number: int = 1) -> "AnalysisData":
         """
         Load analysis from a JSON file written by run_animator.py --analyze.
 
         If pgn_path exists, the game details (players, event, opening...)
-        are read from its headers, so editing them doesn't need a fresh
-        analysis; otherwise they come from the JSON.
+        are read from the headers of its game game_number, so editing them
+        doesn't need a fresh analysis; otherwise they come from the JSON.
         """
         with open(json_path) as f:
             data = json.load(f)
 
         if pgn_path and Path(pgn_path).exists():
-            game_info = GameInfo.from_pgn(Path(pgn_path))
+            game_info = GameInfo.from_pgn(Path(pgn_path), game_number)
         else:
             game_info = GameInfo(
                 white=data.get("white", "White"),
@@ -325,10 +327,12 @@ class AnalysisData:
                       time_limit: Optional[float] = None,
                       lines: Optional[int] = None,
                       threads: Optional[int] = None,
-                      hash_mb: Optional[int] = None) -> "AnalysisData":
+                      hash_mb: Optional[int] = None,
+                      game_number: int = 1) -> "AnalysisData":
         """
-        Run live analysis using chess_game_analyzer.py, with the video's
-        defaults: see video_search (lines=None: VIDEO_LINES).
+        Run live analysis of game game_number in pgn_path using
+        chess_game_analyzer.py, with the video's defaults: see video_search
+        (lines=None: VIDEO_LINES).
         Prefer pre-computed JSON (from_json_file) for iteration speed.
         """
         try:
@@ -340,7 +344,7 @@ class AnalysisData:
         with EnhancedGameAnalyzer(stockfish_path, depth, time_limit,
                                   threads=threads, hash_mb=hash_mb,
                                   lines=VIDEO_LINES if lines is None else lines) as analyzer:
-            result = analyzer.analyze_game(str(pgn_path))
+            result = analyzer.analyze_game(str(pgn_path), game_number=game_number)
 
         game_info = GameInfo(
             white=result.white,
@@ -780,7 +784,7 @@ def _load_animator_config() -> Dict[str, str]:
     CHESS_ANIMATOR_CONFIG environment variable.
 
     Returns a dict with optional keys:
-        pgn_path, analysis_path, comments_path, stockfish_path
+        pgn_path, game_number, analysis_path, comments_path, stockfish_path
     """
     config_path = os.environ.get("CHESS_ANIMATOR_CONFIG", "")
     if config_path and Path(config_path).exists():
@@ -802,19 +806,23 @@ def comment_hold_seconds(comment: Optional[str]) -> float:
     return max(BASE_HOLD_SECONDS, len(comment) / READING_CHARS_PER_SECOND)
 
 
-def default_notes_path(pgn_path) -> Path:
-    """The notes file that goes with a PGN: games/x.pgn -> games/x_notes.txt."""
-    pgn_path = Path(pgn_path)
-    return pgn_path.with_name(pgn_path.stem + "_notes.txt")
+def default_notes_path(pgn_path, game_number: int = 1) -> Path:
+    """
+    The notes file that goes with a PGN's game: games/x.pgn ->
+    games/x_notes.txt, or games/x_game3_notes.txt for its third game.
+    """
+    return game_file(pgn_path, "_notes.txt", game_number)
 
 
-def analysis_sources(pgn_path, analysis_path) -> Tuple[List[Path], List[Path]]:
+def analysis_sources(pgn_path, analysis_path,
+                     game_number: int = 1) -> Tuple[List[Path], List[Path]]:
     """
     Where to look for a game's analysis: (JSON files, PGNs to analyse live),
     each in order of preference.
 
     Once a game is named, only its own files count, so a game without an
-    analysis is analysed live rather than shown with another game's moves.
+    analysis is analysed live rather than shown with another game's moves;
+    that includes the other games in the same PGN.
     The default files are for running the scene without a config.
     """
     if not pgn_path and not analysis_path:
@@ -824,7 +832,7 @@ def analysis_sources(pgn_path, analysis_path) -> Tuple[List[Path], List[Path]]:
     pgns = []
     if pgn_path:
         pgn_path = Path(pgn_path)
-        jsons.append(pgn_path.with_name(pgn_path.stem + "_analysis.json"))
+        jsons.append(game_file(pgn_path, "_analysis.json", game_number))
         pgns.append(pgn_path)
     return jsons, pgns
 
@@ -1171,6 +1179,7 @@ class AnimatedGame(Scene):
         super().__init__(**kwargs)
         cfg = _load_animator_config()
         self.pgn_path      = cfg.get("pgn_path")
+        self.game_number   = cfg.get("game_number", 1)
         self.analysis_path = cfg.get("analysis_path")
         self.comments_path = cfg.get("comments_path")
         self.stockfish_path = cfg.get("stockfish_path")
@@ -1186,19 +1195,21 @@ class AnimatedGame(Scene):
         2. Live Stockfish run (pgn_path)
         3. Hard error
         """
-        candidates, pgn_candidates = analysis_sources(self.pgn_path, self.analysis_path)
+        candidates, pgn_candidates = analysis_sources(self.pgn_path, self.analysis_path,
+                                                       self.game_number)
 
         # Try analysis JSON first
         for path in candidates:
             if path.exists():
                 print(f"Loading analysis from {path}")
-                return AnalysisData.from_json_file(path, self.pgn_path)
+                return AnalysisData.from_json_file(path, self.pgn_path, self.game_number)
 
         # Fall back to live analysis
         for path in pgn_candidates:
             if path.exists():
                 print(f"Running live Stockfish analysis on {path}…")
-                return AnalysisData.from_analyzer(path, self.stockfish_path)
+                return AnalysisData.from_analyzer(path, self.stockfish_path,
+                                                  game_number=self.game_number)
 
         raise FileNotFoundError(
             "No analysis JSON or PGN found. "
@@ -1213,11 +1224,12 @@ class AnimatedGame(Scene):
         """
         txt_path = self.comments_path
         if not txt_path and self.pgn_path:
-            candidate = default_notes_path(self.pgn_path)
+            candidate = default_notes_path(self.pgn_path, self.game_number)
             if candidate.exists():
                 txt_path = str(candidate)
 
-        self.custom_comments, self.pgn_marks = load_commentary(self.pgn_path, txt_path)
+        self.custom_comments, self.pgn_marks = load_commentary(self.pgn_path, txt_path,
+                                                                self.game_number)
         sources = [p for p in (self.pgn_path, txt_path) if p and Path(p).exists()]
         if self.custom_comments or self.pgn_marks:
             print(f"Loaded {len(self.custom_comments)} comments and "
@@ -1232,7 +1244,7 @@ class AnimatedGame(Scene):
     def _load_clocks(self):
         """Load the PGN's [%clk] times into self.clocks, and its start time."""
         if self.pgn_path and Path(self.pgn_path).exists():
-            self.clock_start, self.clocks = parse_pgn_clocks(self.pgn_path)
+            self.clock_start, self.clocks = parse_pgn_clocks(self.pgn_path, self.game_number)
         if self.clocks:
             print(f"Loaded {len(self.clocks)} clock times from {self.pgn_path}")
 

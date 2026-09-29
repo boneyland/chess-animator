@@ -121,6 +121,7 @@ The name doesn't need changing: any `stockfish*` executable on your `PATH` is fo
 | `openings/` | Lichess's opening data (`a.tsv` to `e.tsv`). |
 | `upstream_fixes.py` | Patches for bugs in manim and manim-chess, applied when the scenes import it; each is reported upstream. |
 | `convert_script_to_comment_dict.py` | Reads commentary from a `[KEY]` notes file and from PGN comments and move marks. |
+| `pgn_games.py` | Picks one game out of a PGN that holds several, and names its analysis and notes files. |
 | `sample_game.pgn` | The annotated example game used throughout this README. |
 | `tests/` | Unit tests (see [Testing Without a Game File](#testing-without-a-game-file)). |
 | `preview.png` | The screenshot at the top of this README. |
@@ -225,6 +226,12 @@ python run_animator.py my_game --analyze
 python run_animator.py games/my_game --analyze
 ```
 
+A PGN can hold several games, as a Lichess study or a tournament download does. The video is of the first game, and the script says so when there are more; `--game N` (or `-g N`) picks another, counting from 1. Each game after the first gets its own files, `{name}_game{N}_analysis.json` and `{name}_game{N}_notes.txt`, so analyzing one doesn't overwrite another:
+
+```bash
+python run_animator.py tournament --game 3 --analyze   # tournament_game3_analysis.json
+```
+
 ---
 
 ## Command-Line Options
@@ -243,6 +250,7 @@ python run_animator.py [game_id] [options]
 | `--output NAME` | `-o` | the scene name | File name for the video; `.mp4` is added if missing |
 | `--no-preview` | `-n` | off | Don't open the video after rendering |
 | `--scene NAME` | `-S` | `AnimatedGame` | Manim scene to render, e.g. `QuickDemo` |
+| `--game N` | `-g` | 1 | Which game to animate when the PGN holds several (see [Your own game](#5-your-own-game)) |
 | `--analyze` | `-a` | off | Run Stockfish and save `{game_id}_analysis.json` before rendering |
 | `--time-limit SECONDS` | `-t` | 4 | Seconds per position for `--analyze` |
 | `--depth N` | `-d` | none | Search to this depth instead (see [Analyze and animate](#1-analyze-and-animate-in-one-step)) |
@@ -300,7 +308,7 @@ Only the main line is read; side variations are ignored. Clock and eval tags fro
 
 ### In a notes file
 
-Create a plain text file named `{game_id}_notes.txt` next to the PGN, e.g. `sample_game_notes.txt`. Each entry is a ply number in square brackets, where ply 1 is White's first move, ply 2 is Black's first move, and so on, followed by your comment. Three other keys are recognised: `[INTRO]` is shown on the title card, and `[RESULT]` and `[CONCLUSION]` on the end card. Each key goes at the start of a line, and its comment runs until the next key, so a comment can span several lines and contain square brackets.
+Create a plain text file named `{game_id}_notes.txt` next to the PGN, e.g. `sample_game_notes.txt` (for a later game in a PGN of several, `{game_id}_game{N}_notes.txt`). Each entry is a ply number in square brackets, where ply 1 is White's first move, ply 2 is Black's first move, and so on, followed by your comment. Three other keys are recognised: `[INTRO]` is shown on the title card, and `[RESULT]` and `[CONCLUSION]` on the end card. Each key goes at the start of a line, and its comment runs until the next key, so a comment can span several lines and contain square brackets.
 
 ```
 [INTRO]

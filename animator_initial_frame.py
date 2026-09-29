@@ -17,7 +17,6 @@ InitialFrame reads game.pgn, or else sample_game.pgn, from the current
 directory, and shows placeholder players when neither exists.
 """
 
-import chess.pgn
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -36,6 +35,7 @@ from animator_layout import (
     ANALYSIS_TOP_Y, ANALYSIS_BOTTOM_Y, ANALYSIS_CENTER_Y,
     get_panel_rect, format_player_display
 )
+from pgn_games import open_game
 
 
 # =============================================================================
@@ -58,18 +58,18 @@ class GameInfo:
     eco: str = ""
     
     @classmethod
-    def from_pgn(cls, pgn_path: Path) -> "GameInfo":
+    def from_pgn(cls, pgn_path: Path, game_number: int = 1) -> "GameInfo":
         """
         Parse game info from a PGN file.
         
         Args:
             pgn_path: Path to the PGN file
+            game_number: Which game in the file, counting from 1
             
         Returns:
             GameInfo with parsed metadata
         """
-        with open(pgn_path, encoding="utf-8") as f:
-            game = chess.pgn.read_game(f)
+        game = open_game(pgn_path, game_number)
         
         if game is None:
             return cls()

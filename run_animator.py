@@ -19,6 +19,7 @@ from typing import Optional
 from chess_game_analyzer import (VIDEO_LINES, VIDEO_TIME_LIMIT, EnhancedGameAnalyzer,
                                  ProgressLine, describe_search, positive_int,
                                  search_depth, video_search)
+from pgn_games import count_games, game_file, open_game
 
 
 HELP_EPILOG = """\
@@ -31,6 +32,10 @@ Files, for a game_id:
     With neither the PGN nor the analysis the script exits with an error.
     With a PGN but no analysis, the video analyzes it live, which is slow.
 
+    A PGN with several games gives a video of the first; --game N picks
+    another, whose files are {game_id}_gameN_analysis.json and
+    {game_id}_gameN_notes.txt.
+
 Examples:
     # 720p render (default quality)
     python run_animator.py sample_game
@@ -40,6 +45,9 @@ Examples:
 
     # Save as byrne_fischer.mp4 instead of AnimatedGame.mp4
     python run_animator.py sample_game --output byrne_fischer
+
+    # The third game in a PGN of several
+    python run_animator.py tournament --game 3 --analyze
 
     # Analyze then animate in one step (4 seconds per position)
     python run_animator.py sample_game --analyze
@@ -96,25 +104,29 @@ def run_analysis(pgn_path: Path, output_path: Path,
                  time_limit: Optional[float] = None,
                  threads: Optional[int] = None,
                  hash_mb: Optional[int] = None,
-                 lines: int = VIDEO_LINES) -> bool:
+                 lines: int = VIDEO_LINES,
+                 game_number: int = 1) -> bool:
     """
-    Run chess_game_analyzer on pgn_path and save JSON to output_path; with
-    neither depth nor time_limit, each position is searched for
-    VIDEO_TIME_LIMIT seconds (see video_search).  Returns True on success.
+    Run chess_game_analyzer on game game_number of pgn_path and save JSON
+    to output_path; with neither depth nor time_limit, each position is
+    searched for VIDEO_TIME_LIMIT seconds (see video_search).  Returns True
+    on success.
 
     Deliberately does NOT import anything from animator_game so that
     manim / manim_chess are never touched during the analysis step.
     """
     depth, time_limit = video_search(depth, time_limit)
     search = describe_search(search_depth(depth, time_limit), time_limit)
-    print(f"Running Stockfish analysis ({search}) on {pgn_path} …")
+    game = f", game {game_number}" if game_number > 1 else ""
+    print(f"Running Stockfish analysis ({search}) on {pgn_path}{game} …")
 
     progress = ProgressLine()
     try:
         with EnhancedGameAnalyzer(stockfish, depth, time_limit,
                                   threads=threads, hash_mb=hash_mb,
                                   lines=lines) as analyzer:
-            result = analyzer.analyze_game(str(pgn_path), progress=progress)
+            result = analyzer.analyze_game(str(pgn_path), progress=progress,
+                                           game_number=game_number)
     except Exception as exc:
         progress.finish()   # end the progress line before the error
         print(f"Error during analysis: {exc}")
@@ -165,6 +177,27 @@ def run_analysis(pgn_path: Path, output_path: Path,
 # Main
 # ---------------------------------------------------------------------------
 
+def game_choice_message(pgn_path: Path, game_number: Optional[int]) -> Optional[str]:
+    """
+    None when the PGN holds just one game.  Otherwise a note naming the game
+    that will be animated, with a hint about --game when none was asked for.
+    Raises ValueError if the PGN has no game game_number.
+    """
+    count = count_games(pgn_path)
+    number = game_number or 1
+    if number > count:
+        have = "no games" if count == 0 else f"only {count} game{'s' if count != 1 else ''}"
+        raise ValueError(f"{pgn_path} has {have}; there is no game {number}.")
+    if count == 1:
+        return None
+    headers = open_game(pgn_path, number).headers
+    players = f"{headers.get('White', '?')} vs {headers.get('Black', '?')}"
+    message = f"Note: {pgn_path} has {count} games; animating game {number} ({players})."
+    if game_number is None:
+        message += f"\n      Use --game N (1–{count}) to choose another."
+    return message
+
+
 def manim_command(quality_flag: str, args) -> list:
     """The manim command line for args.scene, named by --output if given."""
     cmd = ["manim", quality_flag, "animator_game.py", args.scene]
@@ -200,6 +233,12 @@ def main():
         "-o", "--output", default=None, metavar="NAME",
         help="File name for the video, saved in Manim's usual video folder "
              "(default: the scene name, e.g. AnimatedGame.mp4).",
+    )
+    parser.add_argument(
+        "-g", "--game", type=positive_int, default=None, metavar="N",
+        help="Which game to animate when the PGN holds several, counting from "
+             "1 (default: the first). Games after the first get their own "
+             "files: {game_id}_gameN_analysis.json and {game_id}_gameN_notes.txt.",
     )
     parser.add_argument(
         "-a", "--analyze", action="store_true",
@@ -257,9 +296,22 @@ def main():
         parser.error("game_id is required when rendering AnimatedGame.")
 
     game_id = args.game_id
+    game_number   = args.game or 1
     pgn_path      = Path(f"{game_id}.pgn")
-    analysis_path = Path(f"{game_id}_analysis.json")
-    notes_path    = Path(f"{game_id}_notes.txt")
+    analysis_path = game_file(pgn_path, "_analysis.json", game_number)
+    notes_path    = game_file(pgn_path, "_notes.txt", game_number)
+
+    # ------------------------------------------------------------------
+    # Several games in the PGN: say which one is animated
+    # ------------------------------------------------------------------
+    if pgn_path.exists():
+        try:
+            message = game_choice_message(pgn_path, args.game)
+        except ValueError as exc:
+            print(f"Error: {exc}")
+            sys.exit(1)
+        if message:
+            print(message)
 
     # ------------------------------------------------------------------
     # Optional: run analysis first
@@ -270,7 +322,8 @@ def main():
             sys.exit(1)
         ok = run_analysis(pgn_path, analysis_path, args.stockfish, args.depth,
                           time_limit=args.time_limit, threads=args.threads,
-                          hash_mb=args.hash_mb, lines=args.lines)
+                          hash_mb=args.hash_mb, lines=args.lines,
+                          game_number=game_number)
         if not ok:
             sys.exit(1)
 
@@ -296,6 +349,7 @@ def main():
     # ------------------------------------------------------------------
     config = {
         "pgn_path":      str(pgn_path)      if has_pgn      else None,
+        "game_number":   game_number,
         "analysis_path": str(analysis_path) if has_analysis else None,
         "comments_path": str(notes_path)    if notes_path.exists() else None,
         "stockfish_path": args.stockfish,

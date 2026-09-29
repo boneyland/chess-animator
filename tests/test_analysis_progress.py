@@ -141,6 +141,17 @@ class AnalyzeGameProgressTest(unittest.TestCase):
                                   progress=lambda done, total: calls.append((done, total)))
         self.assertEqual(calls, [(0, 3), (1, 3), (2, 3), (3, 3)])
 
+    def test_game_number_picks_the_game_analyzed(self):
+        from chess_game_analyzer import EnhancedGameAnalyzer
+
+        pgn = '[White "A"]\n\n1. e4 *\n\n[White "C"]\n\n1. d4 d5 *\n'
+        with EnhancedGameAnalyzer(STOCKFISH, depth=1) as analyzer:
+            result = analyzer.analyze_game(pgn, game_number=2)
+            self.assertEqual((result.white, [m.move_san for m in result.moves]),
+                             ("C", ["d4", "d5"]))
+            with self.assertRaisesRegex(ValueError, "no game 3"):
+                analyzer.analyze_game(pgn, game_number=3)
+
 
 @unittest.skipUnless(STOCKFISH, "Stockfish not found on PATH")
 class TimeLimitTest(unittest.TestCase):
@@ -201,7 +212,7 @@ class TimeLimitFlagTest(unittest.TestCase):
         import run_animator
 
         argv = ["run_animator.py", "sample_game", "-a", "-t", "2.5", "-d", "12",
-                "-j", "3", "-l", "2", "-m", "512", "-s", "sf"]
+                "-j", "3", "-l", "2", "-m", "512", "-s", "sf", "-g", "1"]
         with mock.patch.object(sys, "argv", argv), \
              mock.patch.object(run_animator, "run_analysis", return_value=False) as run, \
              mock.patch("builtins.print"):
@@ -209,7 +220,8 @@ class TimeLimitFlagTest(unittest.TestCase):
                 run_animator.main()
         self.assertEqual(run.call_args.args[2:], ("sf", 12))
         self.assertEqual(run.call_args.kwargs,
-                         {"time_limit": 2.5, "threads": 3, "hash_mb": 512, "lines": 2})
+                         {"time_limit": 2.5, "threads": 3, "hash_mb": 512, "lines": 2,
+                          "game_number": 1})
 
     def test_time_limit_flag_is_passed_to_the_analysis(self):
         run = self.analysis_call("--time-limit", "2.5")

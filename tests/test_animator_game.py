@@ -241,6 +241,12 @@ class GameInfoSourceTest(unittest.TestCase):
         self.assertEqual((info.white, info.event, info.date, info.opening),
                          ("Donald Byrne", "Third Rosenwald Trophy", "1956.10.17", "Grünfeld Defense"))
 
+    def test_header_comes_from_the_game_asked_for(self):
+        pgn = _write_temp(".pgn", '[White "First"]\n\n1. e4 *\n\n[White "Second"]\n\n1. d4 *\n')
+        self.addCleanup(os.remove, pgn)
+        info = AnalysisData.from_json_file(Path(self.json_path), Path(pgn), 2).game_info
+        self.assertEqual(info.white, "Second")
+
     def test_header_comes_from_the_json_without_a_pgn(self):
         info = AnalysisData.from_json_file(Path(self.json_path)).game_info
         self.assertEqual((info.white, info.event), ("Old White", "Old Event"))
@@ -257,6 +263,11 @@ class AnalysisSourcesTest(unittest.TestCase):
         jsons, _ = analysis_sources("games/x.pgn", "elsewhere/x_analysis.json")
         self.assertEqual(jsons[0], Path("elsewhere/x_analysis.json"))
         self.assertNotIn(Path("sample_game_analysis.json"), jsons)
+
+    def test_a_later_game_in_the_pgn_has_its_own_analysis(self):
+        jsons, pgns = analysis_sources("games/x.pgn", None, 3)
+        self.assertEqual(jsons, [Path("games/x_game3_analysis.json")])
+        self.assertEqual(pgns, [Path("games/x.pgn")])
 
     def test_the_default_files_are_used_only_without_a_game(self):
         jsons, pgns = analysis_sources(None, None)
@@ -311,6 +322,10 @@ class DefaultNotesPathTest(unittest.TestCase):
     def test_notes_file_sits_next_to_the_pgn(self):
         self.assertEqual(default_notes_path("games/fischer.pgn"),
                          Path("games/fischer_notes.txt"))
+
+    def test_a_later_game_has_its_own_notes_file(self):
+        self.assertEqual(default_notes_path("games/fischer.pgn", 2),
+                         Path("games/fischer_game2_notes.txt"))
 
 
 class EvalBarTest(unittest.TestCase):

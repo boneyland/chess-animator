@@ -147,5 +147,26 @@ class LoadCommentaryTest(unittest.TestCase):
         self.assertEqual(load_commentary(None, "no_such_notes.txt"), ({}, {}))
 
 
+class LaterGameTest(unittest.TestCase):
+    """Commentary, marks and clocks come from the game asked for."""
+
+    def setUp(self):
+        self.path = _write_temp(".pgn",
+            '[White "A"]\n\n1. e4! {First game.} { [%clk 0:05:00] } *\n\n'
+            '[White "C"]\n[TimeControl "180+2"]\n\n'
+            '1. d4?! {Second game.} { [%clk 0:02:59] } *\n')
+        self.addCleanup(os.remove, self.path)
+
+    def test_commentary_and_marks_of_the_second_game(self):
+        self.assertEqual(load_commentary(self.path, None, 2),
+                         ({"1": "Second game."}, {1: "?!"}))
+
+    def test_clocks_of_the_second_game(self):
+        self.assertEqual(parse_pgn_clocks(self.path, 2), (180, {1: 179.0}))
+
+    def test_the_first_game_by_default(self):
+        self.assertEqual(parse_pgn_annotations(self.path), ({"1": "First game."}, {1: "!"}))
+
+
 if __name__ == "__main__":
     unittest.main()
