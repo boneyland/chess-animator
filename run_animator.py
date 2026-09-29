@@ -38,6 +38,9 @@ Examples:
     # High-quality final render
     python run_animator.py sample_game --quality high
 
+    # Save as byrne_fischer.mp4 instead of AnimatedGame.mp4
+    python run_animator.py sample_game --output byrne_fischer
+
     # Analyze then animate in one step (4 seconds per position)
     python run_animator.py sample_game --analyze
 
@@ -162,6 +165,14 @@ def run_analysis(pgn_path: Path, output_path: Path,
 # Main
 # ---------------------------------------------------------------------------
 
+def manim_command(quality_flag: str, args) -> list:
+    """The manim command line for args.scene, named by --output if given."""
+    cmd = ["manim", quality_flag, "animator_game.py", args.scene]
+    if args.output:
+        cmd += ["-o", args.output]
+    return cmd
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Render a chess game animation via Manim.",
@@ -184,6 +195,11 @@ def main():
     parser.add_argument(
         "--no-preview", action="store_true",
         help="Don't open the video after rendering.",
+    )
+    parser.add_argument(
+        "-o", "--output", default=None, metavar="NAME",
+        help="File name for the video, saved in Manim's usual video folder "
+             "(default: the scene name, e.g. AnimatedGame.mp4).",
     )
     parser.add_argument(
         "--analyze", action="store_true",
@@ -230,7 +246,7 @@ def main():
         quality_flag = QUALITY_FLAGS[args.quality]
         if args.no_preview:
             quality_flag = quality_flag.replace("-p", "-")  # drop preview flag
-        cmd = ["manim", quality_flag, "animator_game.py", args.scene]
+        cmd = manim_command(quality_flag, args)
         print(f"Running: {' '.join(cmd)}")
         sys.exit(subprocess.run(cmd).returncode)
 
@@ -300,7 +316,7 @@ def main():
     if args.no_preview:
         quality_flag = quality_flag.replace("-p", "-")
 
-    cmd = ["manim", quality_flag, "animator_game.py", args.scene]
+    cmd = manim_command(quality_flag, args)
     print(f"Running: {' '.join(cmd)}")
     print(f"  CHESS_ANIMATOR_CONFIG={config_file}")
     print()

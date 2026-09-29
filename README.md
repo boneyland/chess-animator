@@ -201,6 +201,12 @@ python run_animator.py sample_game --quality high --no-preview
 python run_animator.py sample_game --quality ultra --no-preview
 ```
 
+The video is saved as `media/videos/animator_game/<quality>/AnimatedGame.mp4`, overwriting the previous render at that quality. To keep it under another name, pass `--output` (or `-o`); `.mp4` is added if you leave it off:
+
+```bash
+python run_animator.py sample_game --quality high --output byrne_fischer
+```
+
 ### 4. Stockfish location
 
 ```bash

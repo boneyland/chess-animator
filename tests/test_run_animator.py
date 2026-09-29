@@ -42,5 +42,31 @@ class SceneExitCodeTest(unittest.TestCase):
             self.assertFalse(Path("game_animator_config.json").exists())
 
 
+class OutputNameTest(unittest.TestCase):
+
+    def manim_command(self, argv):
+        done = subprocess.CompletedProcess(args=[], returncode=0)
+        with tempfile.TemporaryDirectory() as tmp, contextlib.chdir(tmp), \
+             mock.patch.object(sys, "argv", ["run_animator.py", *argv]), \
+             mock.patch.object(run_animator.subprocess, "run", return_value=done) as run, \
+             mock.patch("builtins.print"):
+            Path("game.pgn").write_text("1. e4 *\n")
+            with self.assertRaises(SystemExit):
+                run_animator.main()
+        return run.call_args.args[0]
+
+    def test_output_name_is_passed_to_manim(self):
+        cmd = self.manim_command(["game", "--no-preview", "--output", "byrne_fischer"])
+        self.assertEqual(cmd[-2:], ["-o", "byrne_fischer"])
+
+    def test_output_name_applies_to_other_scenes(self):
+        cmd = self.manim_command(["--scene", "QuickDemo", "-o", "demo"])
+        self.assertEqual(cmd[-2:], ["-o", "demo"])
+
+    def test_no_output_name_leaves_manims_default(self):
+        cmd = self.manim_command(["game", "--no-preview"])
+        self.assertNotIn("-o", cmd)
+
+
 if __name__ == "__main__":
     unittest.main()
