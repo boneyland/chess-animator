@@ -63,6 +63,10 @@ class OutputNameTest(unittest.TestCase):
         cmd = self.manim_command(["--scene", "QuickDemo", "-o", "demo"])
         self.assertEqual(cmd[-2:], ["-o", "demo"])
 
+    def test_short_render_flags_match_the_long_ones(self):
+        cmd = self.manim_command(["-S", "QuickDemo", "-q", "low", "-n", "-o", "demo"])
+        self.assertEqual(cmd, ["manim", "-ql", "animator_game.py", "QuickDemo", "-o", "demo"])
+
     def test_no_output_name_leaves_manims_default(self):
         cmd = self.manim_command(["game", "--no-preview"])
         self.assertNotIn("-o", cmd)

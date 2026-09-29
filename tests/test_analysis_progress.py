@@ -109,10 +109,17 @@ class AnalyzerCommandLineTest(unittest.TestCase):
         self.assertEqual(engine_call.kwargs,
                          {"threads": 3, "hash_mb": 512, "lines": 1})
 
+    def test_short_engine_flags_match_the_long_ones(self):
+        engine_call, _ = self.run_main("-j", "3", "-m", "512", "-t", "2.5", "-l", "1",
+                                       "-d", "12", "-s", "sf")
+        self.assertEqual(engine_call.args[:3], ("sf", 12, 2.5))
+        self.assertEqual(engine_call.kwargs,
+                         {"threads": 3, "hash_mb": 512, "lines": 1})
+
     def test_progress_is_shown_unless_quiet(self):
         _, game_call = self.run_main()
         self.assertIsInstance(game_call.kwargs.get("progress"), ProgressLine)
-        _, game_call = self.run_main("-q")
+        _, game_call = self.run_main("--quiet")
         self.assertIsNone(game_call.kwargs.get("progress"))
 
     def test_book_mode_shows_progress_and_takes_engine_flags(self):
@@ -189,6 +196,20 @@ class TimeLimitFlagTest(unittest.TestCase):
 
     def test_video_analysis_searches_one_line_by_default(self):
         self.assertEqual(self.analysis_call().kwargs.get("lines"), 1)
+
+    def test_short_analysis_flags_match_the_long_ones(self):
+        import run_animator
+
+        argv = ["run_animator.py", "sample_game", "-a", "-t", "2.5", "-d", "12",
+                "-j", "3", "-l", "2", "-m", "512", "-s", "sf"]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(run_animator, "run_analysis", return_value=False) as run, \
+             mock.patch("builtins.print"):
+            with self.assertRaises(SystemExit):
+                run_animator.main()
+        self.assertEqual(run.call_args.args[2:], ("sf", 12))
+        self.assertEqual(run.call_args.kwargs,
+                         {"time_limit": 2.5, "threads": 3, "hash_mb": 512, "lines": 2})
 
     def test_time_limit_flag_is_passed_to_the_analysis(self):
         run = self.analysis_call("--time-limit", "2.5")

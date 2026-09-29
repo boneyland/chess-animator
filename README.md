@@ -227,6 +227,62 @@ python run_animator.py games/my_game --analyze
 
 ---
 
+## Command-Line Options
+
+Every option has a short form, and the two scripts use the same letter for the options they share. `--help` on either script lists them too.
+
+### `run_animator.py`
+
+```bash
+python run_animator.py [game_id] [options]
+```
+
+| Option | Short | Default | What it does |
+|---|---|---|---|
+| `--quality {low,medium,high,ultra}` | `-q` | `medium` | Resolution and frame rate (see [Quality and resolution](#3-quality-and-resolution)) |
+| `--output NAME` | `-o` | the scene name | File name for the video; `.mp4` is added if missing |
+| `--no-preview` | `-n` | off | Don't open the video after rendering |
+| `--scene NAME` | `-S` | `AnimatedGame` | Manim scene to render, e.g. `QuickDemo` |
+| `--analyze` | `-a` | off | Run Stockfish and save `{game_id}_analysis.json` before rendering |
+| `--time-limit SECONDS` | `-t` | 4 | Seconds per position for `--analyze` |
+| `--depth N` | `-d` | none | Search to this depth instead (see [Analyze and animate](#1-analyze-and-animate-in-one-step)) |
+| `--threads N` | `-j` | all cores but one; 1 with a depth alone | CPU threads for Stockfish (see [Threads and memory](#threads-and-memory)) |
+| `--lines N` | `-l` | 1 | Lines (MultiPV) searched in each position |
+| `--hash MB` | `-m` | 256 | Stockfish hash table size |
+| `--stockfish PATH` | `-s` | auto-detect | Stockfish binary (see [Stockfish location](#4-stockfish-location)) |
+
+For example, analyze for 10 seconds a position, then render in 1080p to `byrne_fischer.mp4` without opening it:
+
+```bash
+python run_animator.py sample_game -a -t 10 -q high -n -o byrne_fischer
+```
+
+### `chess_game_analyzer.py`
+
+```bash
+python chess_game_analyzer.py game.pgn [options]
+```
+
+| Option | Short | Default | What it does |
+|---|---|---|---|
+| `--output FILE` | `-o` | none | Write a LaTeX report (see [LaTeX reports](#latex-reports)) |
+| `--json-output FILE` | `-J` | none | Write the raw analysis as JSON |
+| `--no-diagrams` | `-n` | off | Leave position diagrams out of the report |
+| `--book` | `-b` | off | Analyze every game in the PGN and write one report with a chapter per game |
+| `--book-title TITLE` | `-T` | `Chess Game Collection Analysis` | Title for `--book` |
+| `--book-author NAME` | `-A` | none | Author for `--book` |
+| `--depth N` | `-d` | 20; none with `--time-limit` | Search depth |
+| `--time-limit SECONDS` | `-t` | none | Seconds per position (also `--time`) |
+| `--threads N` | `-j` | 1; all cores but one with `--time-limit` | CPU threads for Stockfish |
+| `--lines N` | `-l` | 3 | Lines (MultiPV) searched before each move |
+| `--hash MB` | `-m` | 256 | Stockfish hash table size |
+| `--stockfish PATH` | `-s` | auto-detect | Stockfish binary |
+| `--quiet` | | off | No progress messages |
+
+With neither `--output` nor `--json-output`, it prints a short summary (result and each side's accuracy).
+
+---
+
 ## Adding Your Own Commentary
 
 There are two ways to add commentary, and you can use both.

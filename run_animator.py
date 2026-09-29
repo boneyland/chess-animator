@@ -185,15 +185,15 @@ def main():
         help="Base filename without extension (e.g. 'my_game').",
     )
     parser.add_argument(
-        "--quality", choices=QUALITY_FLAGS.keys(), default="medium",
+        "-q", "--quality", choices=QUALITY_FLAGS.keys(), default="medium",
         help="Render quality (default: medium, 720p).",
     )
     parser.add_argument(
-        "--scene", default="AnimatedGame",
+        "-S", "--scene", default="AnimatedGame",
         help="Manim scene class to render (default: AnimatedGame).",
     )
     parser.add_argument(
-        "--no-preview", action="store_true",
+        "-n", "--no-preview", action="store_true",
         help="Don't open the video after rendering.",
     )
     parser.add_argument(
@@ -202,37 +202,37 @@ def main():
              "(default: the scene name, e.g. AnimatedGame.mp4).",
     )
     parser.add_argument(
-        "--analyze", action="store_true",
+        "-a", "--analyze", action="store_true",
         help="Run Stockfish analysis before animating.",
     )
     parser.add_argument(
-        "--time-limit", type=float, default=None, metavar="SECONDS",
+        "-t", "--time-limit", type=float, default=None, metavar="SECONDS",
         help="Seconds Stockfish searches each position for --analyze, going as "
              f"deep as that allows (default: {VIDEO_TIME_LIMIT:g}).",
     )
     parser.add_argument(
-        "--depth", type=int, default=None,
+        "-d", "--depth", type=int, default=None,
         help="Search to this depth instead. With --time-limit as well, each "
              "search stops at whichever comes first; alone, on 1 thread, it "
              "gives the same result on every run.",
     )
     parser.add_argument(
-        "--threads", type=positive_int, default=None, metavar="N",
+        "-j", "--threads", type=positive_int, default=None, metavar="N",
         help="CPU threads for Stockfish (default: all cores but one with a "
              "time limit, 1 for a depth alone).",
     )
     parser.add_argument(
-        "--lines", type=positive_int, default=VIDEO_LINES, metavar="N",
+        "-l", "--lines", type=positive_int, default=VIDEO_LINES, metavar="N",
         help=f"Lines (MultiPV) Stockfish searches in each position (default: "
              f"{VIDEO_LINES}, the best line, which is all the video shows). More "
              "lines make a multi-threaded search much shallower.",
     )
     parser.add_argument(
-        "--hash", type=positive_int, default=None, metavar="MB", dest="hash_mb",
+        "-m", "--hash", type=positive_int, default=None, metavar="MB", dest="hash_mb",
         help="Stockfish hash table size in MB (default: 256).",
     )
     parser.add_argument(
-        "--stockfish", default=None,
+        "-s", "--stockfish", default=None,
         help="Path to Stockfish binary (default: auto-detect via STOCKFISH_PATH "
              "or PATH).",
     )

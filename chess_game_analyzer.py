@@ -1546,7 +1546,7 @@ Examples:
     
     parser.add_argument("pgn_file", help="Path to PGN file (can contain multiple games)")
     parser.add_argument("-o", "--output", help="Output LaTeX file")
-    parser.add_argument("--json-output", help="Output raw analysis as JSON")
+    parser.add_argument("-J", "--json-output", help="Output raw analysis as JSON")
     parser.add_argument("-s", "--stockfish", default=None,
                        help="Path to Stockfish executable (default: auto-detect "
                             "via STOCKFISH_PATH or PATH)")
@@ -1558,25 +1558,25 @@ Examples:
                        help="Seconds per position. Alone, the search goes as deep as "
                             "this allows; with --depth, it stops at whichever comes "
                             "first (default: no limit)")
-    parser.add_argument("--lines", type=positive_int, default=ANALYSIS_LINES,
+    parser.add_argument("-l", "--lines", type=positive_int, default=ANALYSIS_LINES,
                        help=f"Lines (MultiPV) searched before each move (default: {ANALYSIS_LINES})")
-    parser.add_argument("--threads", type=positive_int, default=None, metavar="N",
+    parser.add_argument("-j", "--threads", type=positive_int, default=None, metavar="N",
                        help="CPU threads for Stockfish (default: 1, or all cores but one "
                             "with --time, where extra threads help)")
-    parser.add_argument("--hash", type=positive_int, default=None, metavar="MB",
+    parser.add_argument("-m", "--hash", type=positive_int, default=None, metavar="MB",
                        dest="hash_mb",
                        help=f"Stockfish hash table size in MB (default: {DEFAULT_HASH_MB})")
-    parser.add_argument("--no-diagrams", action="store_true",
+    parser.add_argument("-n", "--no-diagrams", action="store_true",
                        help="Don't include position diagrams")
-    parser.add_argument("-q", "--quiet", action="store_true",
+    parser.add_argument("--quiet", action="store_true",
                        help="Suppress progress messages")
 
     # Multi-game book options
-    parser.add_argument("--book", action="store_true",
+    parser.add_argument("-b", "--book", action="store_true",
                        help="Analyze all games in PGN and generate a book (LaTeX book class)")
-    parser.add_argument("--book-title", default="Chess Game Collection Analysis",
+    parser.add_argument("-T", "--book-title", default="Chess Game Collection Analysis",
                        help="Title for the book (used with --book)")
-    parser.add_argument("--book-author", default=None,
+    parser.add_argument("-A", "--book-author", default=None,
                        help="Author for the book (used with --book)")
     
     args = parser.parse_args()
