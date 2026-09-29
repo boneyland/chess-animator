@@ -248,10 +248,18 @@ class PlayerBarsTest(unittest.TestCase):
     def test_no_clocks_without_clock_times(self):
         self.assertEqual(self.bars(start=None, clocks={}).clock_labels(0), ())
 
-    def test_long_names_are_cut(self):
-        self.assertEqual(PlayerBars.fit_name("x" * 60),
-                         "x" * (PlayerBars.NAME_MAX_CHARS - 1) + "…")
-        self.assertEqual(PlayerBars.fit_name("Byrne"), "Byrne")
+    def test_names_that_fit_the_bar_are_not_cut(self):
+        bars = self.bars(names=("Carlsen, Magnus (2803)", "Nepomniachtchi, Ian (2729)"))
+        self.assertEqual([n.text for n in bars.name_labels],
+                         ["Carlsen,Magnus(2803)", "Nepomniachtchi,Ian(2729)"])
+
+    def test_long_names_are_cut_clear_of_the_clock(self):
+        bars = self.bars(names=("x" * 80, "Byrne"))
+        white, black = bars.name_labels
+        self.assertTrue(white.text.endswith("…"))
+        self.assertEqual(black.text, "Byrne")
+        clock = bars.clock_labels(0)[0]
+        self.assertLess(white.get_right()[0], clock.get_left()[0] - 0.5)
 
     def test_material_follows_the_name_with_the_lead(self):
         bars = self.bars()

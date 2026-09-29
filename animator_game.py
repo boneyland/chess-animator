@@ -1052,7 +1052,7 @@ class PlayerBars:
     clock changes on a move; a move without a time keeps the last one shown.
     """
 
-    NAME_MAX_CHARS = 24   # a longer name is cut, leaving room for the rest
+    MATERIAL_ROOM = 1.0   # kept free between the name and the clock
     ICON_HEIGHT = 0.2     # material icons
     ICON_STEP = 0.12      # icons of one type overlap, as on Lichess ...
     GROUP_GAP = 0.1       # ... with a little space between types
@@ -1070,8 +1070,9 @@ class PlayerBars:
         self.bar_y = (board.get_bottom()[1] - CLOCK_GAP - digit_half,   # White
                       board.get_top()[1] + CLOCK_GAP + digit_half)      # Black
         left_x = board.get_left()[0]
+        max_chars = int(self.name_room() / char_width(FONTS.player_name_size))
         self.name_labels = tuple(
-            _left_text(self.fit_name(name), left_x, y, font=FONTS.body_font,
+            _left_text(self.fit_name(name, max_chars), left_x, y, font=FONTS.body_font,
                        weight=FONTS.weight, font_size=FONTS.player_name_size,
                        color=COLORS.text_primary)
             for name, y in zip(names, self.bar_y))
@@ -1081,11 +1082,18 @@ class PlayerBars:
     def get_mobject(self) -> VGroup:
         return VGroup(*self.name_labels, self.layer)
 
-    @classmethod
-    def fit_name(cls, name: str) -> str:
-        if len(name) <= cls.NAME_MAX_CHARS:
+    def name_room(self) -> float:
+        """Width for a name: the bar less the widest clock and the material."""
+        readings = [format_clock(t) for t in [self.start, *self.clocks.values()]]
+        clock = (max(map(len, readings)) * char_width(FONTS.clock_size)
+                 if self.clocks else 0)
+        return self.board.width - clock - self.MATERIAL_ROOM
+
+    @staticmethod
+    def fit_name(name: str, max_chars: int) -> str:
+        if len(name) <= max_chars:
             return name
-        return name[:cls.NAME_MAX_CHARS - 1] + "…"
+        return name[:max_chars - 1] + "…"
 
     def times(self, ply: int) -> Tuple[Optional[float], Optional[float]]:
         """(White's, Black's) time after `ply` plies."""
