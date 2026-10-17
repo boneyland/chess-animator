@@ -41,7 +41,7 @@ The end card lists the engine and search settings used, e.g. `Stockfish 19 · de
 | Dependency | Notes |
 |---|---|
 | Python 3.12+ | |
-| [manim](https://github.com/ManimCommunity/manim) by [Manim Community](https://www.manim.community/) v0.19+ | Tested with v0.21 |
+| [manim](https://github.com/ManimCommunity/manim) by [Manim Community](https://www.manim.community/) v0.22+ | Tested with v0.22 |
 | [manim-chess](https://github.com/swoyer2/manim_chess) | Provides `Board` and `EvaluationBar` |
 | [python-chess](https://python-chess.readthedocs.io/) | Installed as `chess` |
 | [Stockfish](https://stockfishchess.org/download/) | Binary on your system |
@@ -119,7 +119,7 @@ The name doesn't need changing: any `stockfish*` executable on your `PATH` is fo
 | `chess_game_analyzer.py` | Stockfish wrapper: per-move evals, ratings, best lines and mate advice; also writes LaTeX reports. |
 | `chess_openings.py` | Names the opening and marks book moves, from the Lichess opening data in `openings/`. |
 | `openings/` | Lichess's opening data (`a.tsv` to `e.tsv`). |
-| `upstream_fixes.py` | Patches for bugs in manim and manim-chess, applied when the scenes import it; each is reported upstream. |
+| `upstream_fixes.py` | Patches for bugs in manim-chess, applied when the scenes import it; each is reported upstream. |
 | `convert_script_to_comment_dict.py` | Reads commentary from a `[KEY]` notes file and from PGN comments and move marks. |
 | `pgn_games.py` | Picks one game out of a PGN that holds several, and names its analysis and notes files. |
 | `sample_game.pgn` | The annotated example game used throughout this README. |
