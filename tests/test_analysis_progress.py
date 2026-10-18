@@ -162,13 +162,13 @@ class TimeLimitTest(unittest.TestCase):
 
         limits = []
         with EnhancedGameAnalyzer(STOCKFISH, depth=depth, **kwargs) as analyzer:
-            real_analyse = analyzer.engine.analyse
+            real_analysis = analyzer.engine.analysis
 
             def spy(board, limit, *args, **kw):
                 limits.append(limit)
-                return real_analyse(board, limit, *args, **kw)
+                return real_analysis(board, limit, *args, **kw)
 
-            analyzer.engine.analyse = spy
+            analyzer.engine.analysis = spy
             analyzer.analyze_game('[Result "*"]\n\n1. e4 e5 *\n')
         return limits
 

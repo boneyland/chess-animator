@@ -514,12 +514,23 @@ class EnhancedGameAnalyzer:
         return float(white_score.score() or 0)
 
     def _search(self, board: chess.Board) -> List[dict]:
-        """Stockfish's best lines (up to self.lines) for board, best first."""
-        infos = self.engine.analyse(
-            board, chess.engine.Limit(depth=self.depth, time=self.time_limit),
-            multipv=self.lines)
-        # Handle both single dict (multipv=1) and list (multipv>1) returns
-        return [infos] if isinstance(infos, dict) else infos
+        """Stockfish's best lines (up to self.lines) for board, best first.
+
+        Each line is the last exact report for it. A search stopped by its
+        time limit can end on a fail-high/low report, whose score is only a
+        bound and whose pv is cut to a move or two; engine.analyse() merges
+        that report over the last exact one, so it isn't used.
+        """
+        exact = {}
+        with self.engine.analysis(
+                board, chess.engine.Limit(depth=self.depth, time=self.time_limit),
+                multipv=self.lines) as analysis:
+            for info in analysis:
+                if 'score' in info and not info.get('lowerbound') and not info.get('upperbound'):
+                    exact[info.get('multipv', 1)] = info
+            merged = analysis.multipv
+        # a line with no exact report (a finished game: depth 0, no pv) keeps what was merged
+        return [exact.get(i + 1, m) for i, m in enumerate(merged)]
 
     def analyze_game(self, pgn_source: Union[str, io.StringIO], 
                      min_diagram_spacing: int = 6,
