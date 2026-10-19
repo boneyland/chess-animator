@@ -1597,6 +1597,10 @@ Examples:
                        help="Author for the book (used with --book)")
     
     args = parser.parse_args()
+    # Create missing output folders now, not after a long analysis
+    for out_path in (args.output, args.json_output):
+        if out_path and os.path.dirname(out_path):
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
     engine_args = (args.stockfish, args.depth, args.time)
     engine_kwargs = dict(threads=args.threads, hash_mb=args.hash_mb, lines=args.lines)
     progress = None if args.quiet else ProgressLine()

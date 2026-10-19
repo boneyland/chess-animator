@@ -128,6 +128,16 @@ class AnalyzerCommandLineTest(unittest.TestCase):
         self.assertEqual(engine_call.kwargs["threads"], 2)
         self.assertIsInstance(games_call.kwargs.get("progress"), ProgressLine)
 
+    def test_missing_output_folders_are_created_before_the_analysis(self):
+        # Before the analysis, so a long run isn't lost to a missing folder
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            tex = Path(tmp, "reports", "game.tex")
+            js = Path(tmp, "data", "nested", "game.json")
+            self.run_main("-o", str(tex), "-J", str(js))
+            self.assertTrue(tex.parent.is_dir())
+            self.assertTrue(js.parent.is_dir())
+
 
 @unittest.skipUnless(STOCKFISH, "Stockfish not found on PATH")
 class AnalyzeGameProgressTest(unittest.TestCase):
