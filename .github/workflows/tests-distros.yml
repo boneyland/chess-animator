@@ -31,7 +31,7 @@ jobs:
               find stockfish -type f -name 'stockfish-*' -exec install -m 755 {} /usr/local/bin/stockfish \;
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: System packages
         run: ${{ matrix.install }}
       - name: Install and test
