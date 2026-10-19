@@ -17,7 +17,7 @@ import manim_chess
 from manim import ManimColor, interpolate_color
 
 from animator_game import (BoardAnnotation, CheckGlow, CommentPanel, MoveData,
-                           MoveListPanel, PlayerBars, format_clock,
+                           MoveListPanel, PlayerBars, FONTS, char_width, format_clock,
                            material_imbalance, move_mark, play_move)
 from animator_layout import ANNOTATION_COLORS, COLORS
 
@@ -249,9 +249,12 @@ class PlayerBarsTest(unittest.TestCase):
         self.assertEqual(self.bars(start=None, clocks={}).clock_labels(0), ())
 
     def test_names_that_fit_the_bar_are_not_cut(self):
-        bars = self.bars(names=("Carlsen, Magnus (2803)", "Nepomniachtchi, Ian (2729)"))
+        # How many characters fit depends on the font's metrics (ManimPango
+        # 0.7 made Courier New wider), so test at the capacity itself
+        fits = int(self.bars().name_room() / char_width(FONTS.player_name_size))
+        bars = self.bars(names=("x" * fits, "x" * (fits + 1)))
         self.assertEqual([n.text for n in bars.name_labels],
-                         ["Carlsen,Magnus(2803)", "Nepomniachtchi,Ian(2729)"])
+                         ["x" * fits, "x" * (fits - 1) + "…"])
 
     def test_long_names_are_cut_clear_of_the_clock(self):
         bars = self.bars(names=("x" * 80, "Byrne"))
