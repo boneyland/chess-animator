@@ -53,6 +53,17 @@ class EngineMoveRatingTest(unittest.TestCase):
         move, = self.analyse("1. d4", self.searches())
         self.assertEqual((move.classification, move.eval_loss), ("", 30))
 
+    def test_played_move_is_not_listed_as_an_alternative(self):
+        # With several lines, the move played can be one of Stockfish's
+        # alternatives; it must not be suggested "instead" of itself
+        searches = {fen: [info] for fen, info in self.searches().items()}
+        searches[chess.Board().board_fen()] += [_info(20, ["d2d4", "d7d5"]),
+                                                _info(15, ["g1f3", "d7d5"])]
+        analyzer = EnhancedGameAnalyzer(STOCKFISH, depth=1)
+        analyzer._search = lambda board: searches[board.board_fen()]
+        move, = analyzer.analyze_game('[Result "*"]\n\n1. d4 *\n').moves
+        self.assertEqual([san for san, _ in move.alternative_moves], ["Nf3"])
+
 
 class MateRatingTest(unittest.TestCase):
 

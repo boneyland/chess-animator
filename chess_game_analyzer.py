@@ -611,7 +611,8 @@ class EnhancedGameAnalyzer:
                 alternative_moves = []
                 for alt_info in info_before_list[1:]:  # Skip the best move (index 0)
                     alt_move = alt_info.get('pv', [None])[0]
-                    if alt_move and alt_move in board.legal_moves:
+                    # The move played isn't an alternative to itself
+                    if alt_move and alt_move in board.legal_moves and alt_move != node.move:
                         alt_eval = self._eval_to_cp(alt_info['score'])
                         eval_diff = abs(best_eval - alt_eval)
                         if eval_diff <= PLAYABLE_THRESHOLD:
